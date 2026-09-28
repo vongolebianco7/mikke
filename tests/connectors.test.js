@@ -11,6 +11,19 @@ test('shopping check returns evaluated candidates sorted by score then price', a
   assert.equal(result.events.some((event) => event.kind === 'condition_match'), true);
 });
 
+test('shopping check passes Mikke-observed price context into event derivation', async () => {
+  const watch = {
+    id:'w-price', type:'shopping', title:'996', rawQuery:'NB 996、登録後最安値、10%以上値下がり',
+    conditions:{ attributes:{}, priceTriggers:[{type:'new_watch_low'},{type:'drop_percent',percent:10,reference:'previous'}], stateTriggers:[] },
+    requiredKeys:[], preferredKeys:[], createdAt:new Date().toISOString(),
+  };
+  const fetchImpl = async () => ({ ok:true, json:async()=>({ items:[{id:'c1',title:'NB 996',price:9000,available:true,attributes:{}}], providers:[{name:'yahoo',status:'ok'}] }) });
+  const historyContext = { c1:{ previous:{candidateId:'c1',price:12000,available:true,observedAt:'t1'}, initialPrice:13000, observedLow:10000, observationCount:2 } };
+  const result = await runWatchCheck(watch, historyContext, { fetchImpl });
+  assert.ok(result.events.some((event)=>event.kind==='watch_low'));
+  assert.ok(result.events.some((event)=>event.kind==='percent_drop' && event.percent===25));
+});
+
 test('unsupported connector type returns a clear empty state instead of throwing', async () => {
   const watch = { id:'f1', type:'flight', title:'Tokyo Honolulu', rawQuery:'', conditions:{}, requiredKeys:[], preferredKeys:[], createdAt:new Date().toISOString() };
   const result = await runWatchCheck(watch);
