@@ -47,7 +47,13 @@ export function searchKey(watch = {}) {
 
 export function withInFlightDedup(key, fn) {
   if (inFlight.has(key)) return inFlight.get(key);
-  const promise = Promise.resolve().then(fn).finally(() => inFlight.delete(key));
-  inFlight.set(key, promise);
-  return promise;
+  let promise;
+  try {
+    promise = Promise.resolve(fn());
+  } catch (error) {
+    promise = Promise.reject(error);
+  }
+  const tracked = promise.finally(() => inFlight.delete(key));
+  inFlight.set(key, tracked);
+  return tracked;
 }
