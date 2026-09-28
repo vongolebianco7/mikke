@@ -28,6 +28,13 @@ test('missing candidate attributes never count as a hard-condition match', () =>
   assert.equal(evaluation.score < 100, true);
 });
 
+test('candidate attribute arrays can satisfy size and color conditions', () => {
+  const watch = { id:'w1', type:'shopping', title:'996', rawQuery:'', conditions:{ maxPrice:10000, size:'24.5cm', colors:['グレー'] }, requiredKeys:['maxPrice','size'], preferredKeys:['colors'], createdAt:'2026-09-29T00:00:00.000Z' };
+  const evaluation = evaluateCandidate(watch, { id:'c1', source:'yahoo', title:'996', price:9800, attributes:{ sizes:['23cm','24.5cm'], colors:['ブラック','グレー'] }, url:'#' });
+  assert.equal(evaluation.requiredMatch, true);
+  assert.equal(evaluation.score, 100);
+});
+
 test('condition match event is emitted only on transition', () => {
   const evaluation = { requiredMatch:true, score:100, reasons:[] };
   const current = { candidateId:'c1', price:9800, available:true, observedAt:'2026-09-29T00:01:00.000Z' };
