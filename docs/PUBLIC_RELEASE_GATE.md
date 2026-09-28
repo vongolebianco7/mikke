@@ -8,10 +8,14 @@ PUBLIC_BETA is allowed only when Gate A, Gate B, and Gate C all pass.
 
 ## Gate A — Automated CI
 
-- [ ] `test` passes
-- [ ] `security` passes
-- [ ] `compliance-static` passes
-- [ ] `build` passes
+Evidence recorded from GitHub Actions run `36486907491` on branch head `9aa8da46b93485e6ad0af2a61c5f669297609c8a`:
+
+- [x] `test` passes
+- [x] `security` passes
+- [x] `compliance-static` passes
+- [x] `build` passes
+
+Any code change after this evidence requires a fresh Gate A run before release.
 
 ## Gate B — Manual compliance
 
@@ -76,3 +80,5 @@ otherwise
 ```
 
 Current decision: **PUBLIC_BETA = BLOCKED**
+
+Reason: Gate B and Gate C are intentionally incomplete until operator/provider review and a real production smoke test are performed.
