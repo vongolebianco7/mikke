@@ -1,4 +1,4 @@
-const EVENT_PRIORITY={target_price_reached:0,watch_low:1,percent_drop:2,restock:3,initial_price_drop:4,price_drop:5,condition_match:6,new_result:7};
+const EVENT_PRIORITY={target_price_reached:0,watch_low:1,percent_drop:2,restock:3,initial_price_drop:4,price_drop:5,condition_match:6,near_match:7,new_result:8};
 
 function targetPrice(watch){
   const c=watch?.conditions||{};
@@ -11,6 +11,7 @@ export function prioritizeToday(watches=[],resultsByWatch={},history={}){
   const active=watches.filter(w=>w.status!=='stopped');
   const importantChanges=[];
   const nearTargets=[];
+  const nearMatches=[];
   const matches=[];
   const stagnant=[];
   for(const watch of active){
@@ -22,6 +23,7 @@ export function prioritizeToday(watches=[],resultsByWatch={},history={}){
     const target=targetPrice(watch);
     for(const candidate of result?.candidates||[]){
       if(candidate.evaluation?.requiredMatch){matches.push({watch,candidate});continue}
+      if(candidate.evaluation?.nearMatch)nearMatches.push({watch,candidate});
       if(Number.isFinite(target)&&Number.isFinite(candidate.price)&&candidate.price>target){
         const distance=candidate.price-target;
         if(distance<=Math.max(2000,target*.1))nearTargets.push({watch,candidate,target,distance});
@@ -31,6 +33,7 @@ export function prioritizeToday(watches=[],resultsByWatch={},history={}){
   }
   importantChanges.sort((a,b)=>(EVENT_PRIORITY[a.event.kind]??99)-(EVENT_PRIORITY[b.event.kind]??99));
   nearTargets.sort((a,b)=>a.distance-b.distance);
+  nearMatches.sort((a,b)=>(b.candidate.evaluation?.score||0)-(a.candidate.evaluation?.score||0));
   matches.sort((a,b)=>(b.candidate.evaluation?.score||0)-(a.candidate.evaluation?.score||0)||(a.candidate.price??Infinity)-(b.candidate.price??Infinity));
-  return{importantChanges,nearTargets,matches,stagnant,relaxations:[]};
+  return{importantChanges,nearTargets,nearMatches,matches,stagnant,relaxations:[]};
 }
