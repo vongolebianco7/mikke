@@ -23,10 +23,18 @@ test('important changes are ordered by actionability before ordinary matches', (
 });
 
 test('near-target candidates appear when just above explicit target and are not called matches', () => {
-  const results={w1:{candidates:[{id:'c2',price:10800,evaluation:{requiredMatch:false,score:75}}]}};
+  const results={w1:{candidates:[{id:'c2',price:10800,evaluation:{requiredMatch:false,nearMatch:false,score:75}}]}};
   const model=prioritizeToday(watches,results,{});
   assert.equal(model.nearTargets.length,1);
   assert.equal(model.nearTargets[0].distance,800);
+  assert.equal(model.matches.length,0);
+});
+
+test('conservative near matches are surfaced separately with the failed condition',()=>{
+  const results={w1:{candidates:[{id:'c3',price:12000,evaluation:{requiredMatch:false,nearMatch:true,failedRequired:['maxPrice'],score:75}}]}};
+  const model=prioritizeToday(watches,results,{});
+  assert.equal(model.nearMatches.length,1);
+  assert.deepEqual(model.nearMatches[0].candidate.evaluation.failedRequired,['maxPrice']);
   assert.equal(model.matches.length,0);
 });
 
