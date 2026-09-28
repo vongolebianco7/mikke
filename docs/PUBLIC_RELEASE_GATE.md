@@ -25,30 +25,52 @@ Any code change after this evidence requires a fresh Gate A run before release.
 - Intended preview branch: `feat/mikke-mvp`
 - Purpose: iPhone/manual review only; this is not production approval.
 - Initial production scaffold on `main`: created successfully.
-- Preview trigger: branch commit pushed after the initial scaffold deployment.
+- Preview deployment: not yet generated; Vercel Git integration is not currently auto-deploying non-production branches.
 
 ## Gate B — Manual compliance
 
 ### Rakuten Ichiba
 - Provider: Rakuten Ichiba
-- Review date: _not reviewed for public launch_
-- API/version: Ichiba Item Search API / current production version to be confirmed
-- Official references: https://webservice.rakuten.co.jp/
-- Reviewer: _pending_
-- Decision: Review Required
-- Notes: Provider registration, current terms, attribution, rate/usage, cache/retention must be reviewed before public launch.
+- Public-doc research date: 2026-09-29
+- Operator review/acceptance: _pending_
+- API/version confirmed from current docs: Ichiba Item Search API `2026-07-01`
+- Official references:
+  - https://webservice.rakuten.co.jp/documentation/ichiba-item-search
+  - https://webservice.rakuten.co.jp/guide/credit
+  - https://webservice.rakuten.co.jp/guide
+  - https://webservice.rakuten.co.jp/guide/rule
+- Research result:
+  - [x] current API endpoint/version identified
+  - [x] current credit requirement identified
+  - [x] current supplied-HTML requirement identified
+  - [x] short-time repeated-identical-URL warning identified
+  - [x] app registration requirement identified
+  - [ ] operator completes Rakuten app registration and accepts current terms
+  - [ ] deployed Mikke credit is visually verified against current official snippet
+- Decision: **Review Required** until the operator-side items above are complete.
 
 ### Yahoo! Shopping
 - Provider: Yahoo! Shopping
-- Review date: _not reviewed for public launch_
-- API/version: Shopping API v3 / current production version to be confirmed
-- Official references: https://developer.yahoo.co.jp/
-- Reviewer: _pending_
-- Decision: Review Required
-- Notes: Provider registration, current terms, attribution, rate/usage, cache/retention must be reviewed before public launch.
+- Public-doc research date: 2026-09-29
+- Operator review/acceptance: _pending_
+- API/version: Shopping Web API v3
+- Official references:
+  - https://developer.yahoo.co.jp/webapi/shopping/
+  - https://developer.yahoo.co.jp/attribution/
+- Research result:
+  - [x] developer-guideline agreement requirement identified
+  - [x] registered Client ID requirement identified
+  - [x] 1 query/second note identified
+  - [x] prescribed credit HTML requirement identified
+  - [x] prohibition on HTML modification / CSS color changes / extremely small credit identified
+  - [x] bottom-of-app/site placement rule identified
+  - [ ] operator completes Yahoo application registration and accepts current terms
+  - [ ] deployed Mikke credit is visually verified against the prescribed HTML/placement
+- Decision: **Review Required** until the operator-side items above are complete.
 
 ### Manual checklist
-- [ ] Current provider terms reviewed for every enabled provider
+- [x] Current public provider documentation researched for every enabled provider (2026-09-29)
+- [ ] Operator has reviewed/accepted current provider terms for every enabled provider
 - [ ] Provider app registration completed by operator
 - [ ] Production credentials configured server-side only
 - [ ] iPhone Safari attribution visually verified
@@ -56,7 +78,7 @@ Any code change after this evidence requires a fresh Gate A run before release.
 - [ ] Privacy notice matches production data flow
 - [ ] Pricing wording checked for misleading claims
 - [ ] Contact path verified
-- [ ] Git history / secret review completed
+- [ ] Git history / secret review completed at release candidate HEAD
 
 ## Gate C — Production smoke
 
@@ -91,4 +113,4 @@ otherwise
 
 Current decision: **PUBLIC_BETA = BLOCKED**
 
-Reason: Gate B and Gate C are intentionally incomplete until operator/provider review and a real production smoke test are performed.
+Reason: public provider documentation has been researched, but provider-side operator registration/acceptance, deployed iPhone visual verification, and production smoke testing remain incomplete.
