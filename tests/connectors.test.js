@@ -24,6 +24,20 @@ test('shopping check passes Mikke-observed price context into event derivation',
   assert.ok(result.events.some((event)=>event.kind==='percent_drop' && event.percent===25));
 });
 
+test('strongly identified grouped product emits cheaper-provider event when cheapest shop changes', async () => {
+  const watch={id:'wg',type:'shopping',title:'996',rawQuery:'NB 996',conditions:{attributes:{},priceTriggers:[],stateTriggers:[]},requiredKeys:[],preferredKeys:[]};
+  const fetchImpl=async()=>({ok:true,json:async()=>({items:[
+    {id:'rakuten:1',source:'楽天市場',title:'NB 996',price:10000,available:true,attributes:{jan:'4901234567890'}},
+    {id:'yahoo:2',source:'Yahoo!ショッピング',title:'NB 996',price:9500,available:true,attributes:{jan:'4901234567890'}},
+  ],providers:[{name:'rakuten',status:'ok'},{name:'yahoo',status:'ok'}]})});
+  const previous={
+    'rakuten:1':{previous:{candidateId:'rakuten:1',price:9800,available:true,observedAt:'t1'},initialPrice:9800,observedLow:9800},
+    'yahoo:2':{previous:{candidateId:'yahoo:2',price:10200,available:true,observedAt:'t1'},initialPrice:10200,observedLow:10200},
+  };
+  const result=await runWatchCheck(watch,previous,{fetchImpl});
+  assert.ok(result.events.some(event=>event.kind==='cheaper_provider'&&event.candidateId==='yahoo:2'&&event.previousCandidateId==='rakuten:1'));
+});
+
 test('unsupported connector type returns a clear empty state instead of throwing', async () => {
   const watch = { id:'f1', type:'flight', title:'Tokyo Honolulu', rawQuery:'', conditions:{}, requiredKeys:[], preferredKeys:[], createdAt:new Date().toISOString() };
   const result = await runWatchCheck(watch);
