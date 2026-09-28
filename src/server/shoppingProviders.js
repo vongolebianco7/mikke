@@ -1,8 +1,26 @@
 const RAKUTEN_ENDPOINT = 'https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701';
 const YAHOO_ENDPOINT = 'https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch';
 
+const COLOR_PATTERNS = [
+  ['グレー', /グレー|灰色|gray|grey/i],
+  ['ブラック', /ブラック|黒|black/i],
+  ['ホワイト', /ホワイト|白|white/i],
+  ['ベージュ', /ベージュ|beige/i],
+  ['ネイビー', /ネイビー|navy/i],
+  ['ブルー', /ブルー|青|blue/i],
+  ['レッド', /レッド|赤|red/i],
+  ['グリーン', /グリーン|緑|green/i],
+];
+
 function cleanQuery(watch) {
   return String(watch?.rawQuery || watch?.title || '').trim();
+}
+
+export function inferShoppingAttributes(text = '', condition = 'new') {
+  const normalized = String(text);
+  const sizes = [...new Set([...normalized.matchAll(/\b(\d{2}(?:\.\d)?)\s*cm\b/gi)].map((match) => `${match[1]}cm`))];
+  const colors = COLOR_PATTERNS.filter(([, pattern]) => pattern.test(normalized)).map(([name]) => name);
+  return { sizes, colors, condition };
 }
 
 export function buildRakutenRequest(watch, credentials) {
@@ -46,10 +64,12 @@ export function normalizeRakutenItem(item) {
     imageUrl: item.mediumImageUrls?.[0] || '',
     shopName: item.shopName || '',
     condition: 'new',
+    attributes: inferShoppingAttributes(`${item.itemName || ''} ${item.itemCaption || ''}`, 'new'),
   };
 }
 
 export function normalizeYahooItem(item) {
+  const condition = item.condition || 'new';
   return {
     id: `yahoo:${item.code}`,
     source: 'Yahoo!ショッピング',
@@ -59,7 +79,8 @@ export function normalizeYahooItem(item) {
     available: Boolean(item.inStock),
     imageUrl: item.image?.medium || '',
     shopName: item.seller?.name || '',
-    condition: item.condition || 'new',
+    condition,
+    attributes: inferShoppingAttributes(`${item.name || ''} ${item.description || ''} ${item.headLine || ''}`, condition),
   };
 }
 
