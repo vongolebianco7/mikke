@@ -18,6 +18,15 @@ test('parses initial-price relative trigger', () => {
   });
 });
 
+test('parses percentage drop with an explicit previous or initial observation reference', () => {
+  assert.deepEqual(trigger('New Balance 996、前回確認より10%以上値下がり', 'drop_percent'), {
+    type: 'drop_percent', percent: 10, reference: 'previous', role: 'notification',
+  });
+  assert.deepEqual(trigger('New Balance 996、登録時の観測価格より10%以上値下がり', 'drop_percent'), {
+    type: 'drop_percent', percent: 10, reference: 'initial', role: 'notification',
+  });
+});
+
 test('parses percentage drop and observed Watch low triggers', () => {
   const parsed = parseWatchQuery('New Balance 996、10%以上値下がり、登録後最安値になったら');
   assert.deepEqual(parsed.conditions.priceTriggers, [
