@@ -14,22 +14,24 @@ export async function runWatchCheck(watch, previousByCandidate = {}, options = {
   );
   const useOfficial = official.mode === 'official';
   const rawCandidates = useOfficial ? official.items : await searchSampleShopping(watch);
+  const dataMode = useOfficial ? 'official' : 'sample';
   const events = [];
   const candidates = rawCandidates.map((candidate) => {
-    const evaluation = evaluateCandidate(watch, candidate);
+    const enriched = { ...candidate, dataMode, referencePriceDefined: dataMode === 'sample' && Number.isFinite(candidate.previousPrice) };
+    const evaluation = evaluateCandidate(watch, enriched);
     const current = {
-      candidateId: candidate.id,
-      price: candidate.price,
-      available: candidate.available,
+      candidateId: enriched.id,
+      price: enriched.price,
+      available: enriched.available,
       observedAt: new Date().toISOString(),
     };
-    events.push(...deriveEvents(previousByCandidate[candidate.id], current, evaluation));
-    return { ...candidate, evaluation, observation: current };
+    events.push(...deriveEvents(previousByCandidate[enriched.id], current, evaluation));
+    return { ...enriched, evaluation, observation: current };
   }).sort((a, b) => b.evaluation.score - a.evaluation.score || a.price - b.price);
 
   return {
     status: useOfficial ? 'ok' : 'demo',
-    dataMode: useOfficial ? 'official' : 'sample',
+    dataMode,
     candidates,
     events,
     providers: official.providers || [],
