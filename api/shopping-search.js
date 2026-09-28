@@ -1,4 +1,7 @@
 import { searchShoppingProviders } from '../src/server/shoppingProviders.js';
+import { createRateLimiter, callerBucket, withInFlightDedup, searchKey } from '../src/server/requestGuard.js';
+
+const limiter = createRateLimiter({ limit: 3, windowMs: 1000 });
 
 function validWatch(watch) {
   return watch && watch.type === 'shopping' &&
@@ -21,14 +24,23 @@ export default async function handler(req, res, deps = {}) {
     return res.status(400).json({ error: 'invalid_watch' });
   }
 
+  const activeLimiter = deps.rateLimiter || limiter;
+  const rate = activeLimiter.check(callerBucket(req));
+  if (!rate.allowed) {
+    res.setHeader('Retry-After', String(rate.retryAfter));
+    return res.status(429).json({ error: 'rate_limited' });
+  }
+
   const env = deps.env || process.env;
   const fetchImpl = deps.fetchImpl || fetch;
-  const result = await searchShoppingProviders({
+  const normalizedWatch = {
     type: 'shopping',
     rawQuery: watch.rawQuery.trim(),
     title: typeof watch.title === 'string' ? watch.title.slice(0, 160) : '',
     conditions: watch.conditions || {},
-  }, { env, fetchImpl });
+  };
+
+  const result = await withInFlightDedup(searchKey(normalizedWatch), () => searchShoppingProviders(normalizedWatch, { env, fetchImpl }));
 
   return res.status(200).json({
     ...result,
