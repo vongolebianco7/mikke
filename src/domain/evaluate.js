@@ -71,13 +71,32 @@ export function deriveEvents(previous, current, evaluation, context = {}) {
     }
   }
 
+  if (evaluation.nearMatch && previous?.nearMatch !== true) {
+    events.push({
+      kind: 'near_match',
+      candidateId: current.candidateId,
+      failedRequired: [...(evaluation.failedRequired || [])],
+    });
+  }
+
   for (const trigger of triggerList(context)) {
     if (!trigger?.type) continue;
 
-    if (trigger.type === 'drop_percent' && numeric(previous?.price) && numeric(current.price)) {
-      const percent = percentDrop(previous.price, current.price);
-      if (percent >= Number(trigger.percent || 0) && percent > 0) {
-        events.push({ kind: 'percent_drop', candidateId: current.candidateId, percent, referencePrice: previous.price, currentPrice: current.price });
+    if (trigger.type === 'drop_percent' && numeric(current.price)) {
+      const reference = trigger.reference === 'initial' ? 'initial' : 'previous';
+      const referencePrice = reference === 'initial' ? context.initialPrice : previous?.price;
+      if (numeric(referencePrice)) {
+        const percent = percentDrop(referencePrice, current.price);
+        if (percent >= Number(trigger.percent || 0) && percent > 0) {
+          events.push({
+            kind: 'percent_drop',
+            candidateId: current.candidateId,
+            percent,
+            reference,
+            referencePrice,
+            currentPrice: current.price,
+          });
+        }
       }
     }
 
