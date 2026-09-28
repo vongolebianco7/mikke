@@ -16,12 +16,18 @@ test('createWatchRecord creates a stable watch shape from a parsed draft', () =>
   assert.equal(record.id, 'watch-fixed');
   assert.equal(record.status, 'watching');
   assert.equal(record.conditions.maxPrice, 10000);
+  assert.equal(record.conditions.priceTriggers[0].type, 'below_absolute');
 });
 
-test('save and load watches survives malformed storage by returning an empty list', () => {
+test('save and load watches normalizes valid records and survives malformed storage', () => {
   const storage = memoryStorage();
   saveWatches(storage, [{ id:'w1' }]);
-  assert.deepEqual(loadWatches(storage), [{ id:'w1' }]);
+  const loaded = loadWatches(storage);
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'w1');
+  assert.deepEqual(loaded[0].conditions.attributes, {});
+  assert.deepEqual(loaded[0].conditions.priceTriggers, []);
+  assert.deepEqual(loaded[0].conditions.stateTriggers, []);
   storage.setItem('mikke.watches.v1', '{broken');
   assert.deepEqual(loadWatches(storage), []);
 });
