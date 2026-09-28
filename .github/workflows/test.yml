@@ -17,5 +17,10 @@ jobs:
           node --check src/app.js
           node --check src/domain/parseWatch.js
           node --check src/domain/evaluate.js
+          node --check src/domain/providerAttribution.js
+          node --check src/connectors/officialShopping.js
+          node --check src/connectors/runWatchCheck.js
+          node --check src/server/shoppingProviders.js
+          node --check api/shopping-search.js
       - name: Unit tests
         run: npm test
