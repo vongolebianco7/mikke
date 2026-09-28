@@ -6,7 +6,7 @@ Mikke is a condition-monitoring app concept that starts with shopping and expand
 
 ## Current milestone
 
-The first vertical slice is dependency-free so the product can be tested immediately:
+The first vertical slice is dependency-free and free-first:
 
 - Natural-language Watch creation in Japanese
 - Watch type inference: shopping / flight / hotel
@@ -16,17 +16,31 @@ The first vertical slice is dependency-free so the product can be tested immedia
 - Event derivation for condition match, new result, price drop, and restock
 - Local browser persistence for Watches, observations, and meaningful events
 - iPhone-first Today / Watch / Create / History flows
-- Deterministic shopping sample connector for development without external credentials
+- Server-side adapters for the official Rakuten Ichiba and Yahoo! Shopping APIs
+- Explicitly labeled deterministic demo data when no official provider is configured/available
+- Provider attribution shown only when the corresponding provider is actually contacted
 
-The shared Watch/Event domain is provider-independent. Official Rakuten and Yahoo! Shopping connectors can plug into the same candidate interface in the next milestone.
+The shared Watch/Event domain is provider-independent. Provider credentials stay on the server; browser code calls only the same-origin `/api/shopping-search` route.
 
-## Run
+## Run locally
+
+The static UI can run without credentials:
 
 ```bash
 python3 -m http.server 4173
 ```
 
-Open `http://localhost:4173`.
+Open `http://localhost:4173`. Because a plain static server does not expose the serverless API route, shopping checks use clearly labeled demo data.
+
+For a deployment/runtime that supports the `api/` server route, configure these **server-side only** environment variables after you have registered the relevant developer applications and accepted the providers' current terms:
+
+```text
+RAKUTEN_APPLICATION_ID=
+RAKUTEN_ACCESS_KEY=
+YAHOO_APP_ID=
+```
+
+Never put real credentials in `.env.example`, browser code, or Git.
 
 ## Test
 
@@ -34,20 +48,28 @@ Open `http://localhost:4173`.
 npm test
 ```
 
-No npm install is required for this milestone; tests use Node's built-in test runner. The current suite covers parsing, candidate evaluation, connector behavior, Watch persistence, and observation/event history.
+No npm install is required for this milestone; tests use Node's built-in test runner. The suite covers parsing, candidate evaluation, provider request/normalization behavior, secure API boundaries, Watch persistence, history, and attribution visibility.
 
 ## Product constraints
 
-- Free-first: no mandatory metered AI API
+- Free-first: no mandatory metered AI/API service
 - Official APIs / permitted data sources first
-- Scraping only after per-site terms, robots policy, and load are reviewed
+- No scraping in the current implementation
+- Scraping can only be considered later after per-site terms, robots policy, access frequency, and load are explicitly reviewed
+- Provider secrets are server-side only
+- Provider failures are not automatically retried
+- Provider result counts are conservatively capped at 20 per check
 - iPhone is the primary client
 - Meaningful events only; avoid noisy repeated notifications
+- Demo data must never look like live offers
+
+See [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) for the launch checklist and connector guardrails.
 
 ## Next
 
-1. Connect Rakuten Ichiba official API.
-2. Connect Yahoo! Shopping official API.
-3. Add a flight connector behind the same Watch/Event model.
-4. Add in-app notification controls and richer history detail.
-5. Migrate persistence to Supabase when shared accounts and multi-device sync become necessary.
+1. Manually register/confirm Rakuten and Yahoo developer applications and accept their current terms; add credentials only to server-side environment variables.
+2. Verify live provider responses and attribution on an iPhone-sized preview before public launch.
+3. Add scheduled monitoring with conservative request deduplication/rate control.
+4. Research a compliant, free flight-data source before implementing the flight connector; do not scrape booking sites by default.
+5. Add in-app notification controls and richer history detail.
+6. Migrate persistence only when shared accounts/multi-device sync are actually needed.
