@@ -1,4 +1,4 @@
-name: test
+name: release-gates
 
 on:
   push:
@@ -18,9 +18,41 @@ jobs:
           node --check src/domain/parseWatch.js
           node --check src/domain/evaluate.js
           node --check src/domain/providerAttribution.js
+          node --check src/domain/providerCredits.js
+          node --check src/domain/outboundUrl.js
+          node --check src/domain/pricing.js
+          node --check src/domain/localData.js
           node --check src/connectors/officialShopping.js
           node --check src/connectors/runWatchCheck.js
+          node --check src/server/requestGuard.js
           node --check src/server/shoppingProviders.js
           node --check api/shopping-search.js
       - name: Unit tests
         run: npm test
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run security
+
+  compliance-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run compliance
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run build
