@@ -1,6 +1,7 @@
 export const MIKKE_LOCAL_KEYS = Object.freeze([
   'mikke.watches.v1',
   'mikke.history.v1',
+  'mikke.decisions.v1',
 ]);
 
 export function clearMikkeLocalData(storage) {
