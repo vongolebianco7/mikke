@@ -2,6 +2,21 @@ import { evaluateCandidate, deriveEvents } from '../domain/evaluate.js';
 import { searchSampleShopping } from './sampleShopping.js';
 import { searchOfficialShopping } from './officialShopping.js';
 
+function splitHistoryEntry(entry) {
+  if (!entry) return { previous: undefined, context: {} };
+  if (entry.previous || entry.initialPrice !== undefined || entry.observedLow !== undefined) {
+    return {
+      previous: entry.previous,
+      context: {
+        initialPrice: entry.initialPrice,
+        observedLow: entry.observedLow,
+        observationCount: entry.observationCount,
+      },
+    };
+  }
+  return { previous: entry, context: {} };
+}
+
 export async function runWatchCheck(watch, previousByCandidate = {}, options = {}) {
   if (watch.type !== 'shopping') {
     return { status: 'connector_pending', candidates: [], events: [] };
@@ -25,7 +40,12 @@ export async function runWatchCheck(watch, previousByCandidate = {}, options = {
       available: enriched.available,
       observedAt: new Date().toISOString(),
     };
-    events.push(...deriveEvents(previousByCandidate[enriched.id], current, evaluation));
+    const historyEntry = splitHistoryEntry(previousByCandidate[enriched.id]);
+    events.push(...deriveEvents(historyEntry.previous, current, evaluation, {
+      ...historyEntry.context,
+      priceTriggers: watch.conditions?.priceTriggers || [],
+      stateTriggers: watch.conditions?.stateTriggers || [],
+    }));
     return { ...enriched, evaluation, observation: current };
   }).sort((a, b) => b.evaluation.score - a.evaluation.score || a.price - b.price);
 
