@@ -17,6 +17,14 @@ Evidence recorded from GitHub Actions run `36486907491` on branch head `9aa8da46
 
 Any code change after this evidence requires a fresh Gate A run before release.
 
+## Preview environment
+
+- Vercel project: `mikke-preview`
+- Git repository: `vongolebianco7/mikke`
+- Git integration: connected
+- Intended preview branch: `feat/mikke-mvp`
+- Purpose: iPhone/manual review only; this is not production approval.
+
 ## Gate B — Manual compliance
 
 ### Rakuten Ichiba
