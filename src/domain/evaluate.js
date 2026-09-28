@@ -6,8 +6,14 @@ function checkKey(key, conditions, candidate) {
   const attrs = candidate.attributes || {};
   switch (key) {
     case 'maxPrice': return typeof candidate.price === 'number' && candidate.price <= conditions.maxPrice;
-    case 'size': return typeof attrs.size === 'string' && attrs.size === conditions.size;
-    case 'colors': return typeof attrs.color === 'string' && conditions.colors.some((c) => normalizeColor(attrs.color).includes(normalizeColor(c)));
+    case 'size': {
+      if (Array.isArray(attrs.sizes)) return attrs.sizes.includes(conditions.size);
+      return typeof attrs.size === 'string' && attrs.size === conditions.size;
+    }
+    case 'colors': {
+      const values = Array.isArray(attrs.colors) ? attrs.colors : (typeof attrs.color === 'string' ? [attrs.color] : []);
+      return values.some((value) => conditions.colors.some((color) => normalizeColor(value).includes(normalizeColor(color))));
+    }
     case 'origin': return attrs.origin === conditions.origin;
     case 'destination': return attrs.destination === conditions.destination;
     case 'directOnly': return conditions.directOnly ? attrs.direct === true : true;
