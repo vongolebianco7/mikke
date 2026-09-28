@@ -2,9 +2,9 @@ const COLOR_WORDS = ['グレー', '灰色', '黒', 'ブラック', '白', 'ホ�
 
 function parsePrice(raw) {
   const normalized = raw.replace(/,/g, '');
-  const man = normalized.match(/(\d+(?:\.\d+)?)\s*万円(?:以下|未満|切ったら|まで)?/);
+  const man = normalized.match(/(\d+(?:\.\d+)?)\s*万円(?:以下|未満|切ったら|まで|になったら)?/);
   if (man) return Math.round(Number(man[1]) * 10000);
-  const yen = normalized.match(/(\d{4,7})\s*円?(?:以下|未満|切ったら|まで)/);
+  const yen = normalized.match(/(\d{4,7})\s*円?(?:以下|未満|切ったら|まで|になったら)/);
   return yen ? Number(yen[1]) : undefined;
 }
 
@@ -23,6 +23,42 @@ function extractTitle(raw, type) {
   if (type === 'flight') return raw.split(/[、,]/)[0].trim();
   if (type === 'hotel') return raw.split(/[、,]/)[0].trim();
   return raw.split(/[、,]/)[0].trim() || '新しいWatch';
+}
+
+function includesRequiredLanguage(text, token) {
+  return new RegExp(`${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^、,]*(?:必須|絶対|のみ)`).test(text);
+}
+
+function includesPreferredLanguage(text, token) {
+  return new RegExp(`${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^、,]*(?:できれば|希望|だと嬉しい|優先)`).test(text);
+}
+
+function parsePriceTriggers(text, maxPrice, maxPriceRequired) {
+  const triggers = [];
+  if (maxPrice !== undefined) {
+    triggers.push({ type: 'below_absolute', value: maxPrice, reference: 'explicit', role: maxPriceRequired ? 'required' : 'notification' });
+  }
+  if (/(今より|前回より).*(安く|値下がり)/.test(text)) {
+    triggers.push({ type: 'below_previous', reference: 'previous', role: 'notification' });
+  }
+  if (/(登録時|登録した時|最初).*(安く|値下がり)/.test(text)) {
+    triggers.push({ type: 'below_initial', reference: 'initial', role: 'notification' });
+  }
+  const percent = text.match(/(\d{1,2})\s*%\s*以上(?:に)?(?:値下がり|安く)/);
+  if (percent) {
+    triggers.push({ type: 'drop_percent', percent: Number(percent[1]), reference: 'previous', role: 'notification' });
+  }
+  if (/(登録後最安値|登録してから最安値|Mikke.*最安値)/i.test(text)) {
+    triggers.push({ type: 'new_watch_low', reference: 'observed_watch', role: 'notification' });
+  }
+  return triggers;
+}
+
+function parseStateTriggers(text) {
+  const triggers = [];
+  if (/(在庫復活|再入荷)/.test(text)) triggers.push({ type: 'restock', role: 'notification' });
+  if (/(新着|新しい候補|新しい商品)/.test(text)) triggers.push({ type: 'new_result', role: 'notification' });
+  return triggers;
 }
 
 export function parseWatchQuery(raw) {
@@ -59,12 +95,28 @@ export function parseWatchQuery(raw) {
 
   const requiredKeys = [];
   const preferredKeys = [];
-  if (conditions.maxPrice !== undefined) requiredKeys.push('maxPrice');
-  if (conditions.size) requiredKeys.push('size');
+  const maxPriceRequired = maxPrice !== undefined && !/(なったら|教えて|通知)/.test(text);
+  if (maxPrice !== undefined && maxPriceRequired) requiredKeys.push('maxPrice');
+  if (conditions.size) {
+    if (includesPreferredLanguage(text, conditions.size)) preferredKeys.push('size');
+    else requiredKeys.push('size');
+  }
   if (conditions.origin) requiredKeys.push('origin');
   if (conditions.destination) requiredKeys.push('destination');
   if (conditions.directOnly) requiredKeys.push('directOnly');
-  if (conditions.colors) preferredKeys.push('colors');
+  if (conditions.colors) {
+    const colorToken = conditions.colors[0];
+    if (includesRequiredLanguage(text, colorToken)) requiredKeys.push('colors');
+    else preferredKeys.push('colors');
+  }
+
+  conditions.attributes = Object.fromEntries(
+    ['size', 'colors', 'excludeUsed', 'allowDisplay', 'origin', 'destination', 'directOnly', 'tripType']
+      .filter((key) => conditions[key] !== undefined)
+      .map((key) => [key, conditions[key]])
+  );
+  conditions.priceTriggers = parsePriceTriggers(text, maxPrice, maxPriceRequired);
+  conditions.stateTriggers = parseStateTriggers(text);
 
   return { type, title: extractTitle(text, type), rawQuery: text, conditions, requiredKeys, preferredKeys };
 }
