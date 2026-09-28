@@ -5,6 +5,7 @@ import {
   buildYahooRequest,
   normalizeRakutenItem,
   normalizeYahooItem,
+  inferShoppingAttributes,
   searchShoppingProviders,
 } from '../src/server/shoppingProviders.js';
 
@@ -35,6 +36,12 @@ test('buildYahooRequest requests new items and caps result count', () => {
   assert.match(request.url, /price_to=10000/);
 });
 
+test('inferShoppingAttributes extracts multiple sizes and common colors without guessing', () => {
+  const attrs = inferShoppingAttributes('New Balance 996 グレー / ブラック サイズ 23cm 24.5cm 25cm');
+  assert.deepEqual(attrs.sizes, ['23cm', '24.5cm', '25cm']);
+  assert.deepEqual(attrs.colors, ['グレー', 'ブラック']);
+});
+
 test('normalizeRakutenItem maps only documented response fields', () => {
   const item = normalizeRakutenItem({
     itemCode: 'shop:123', itemName: 'NB 996', itemPrice: 9800,
@@ -45,6 +52,7 @@ test('normalizeRakutenItem maps only documented response fields', () => {
     id: 'rakuten:shop:123', source: '楽天市場', title: 'NB 996', price: 9800,
     url: 'https://item.example/r', available: true,
     imageUrl: 'https://img.example/r.jpg', shopName: 'Rakuten Shop', condition: 'new',
+    attributes: { sizes: [], colors: [], condition: 'new' },
   });
 });
 
@@ -58,6 +66,7 @@ test('normalizeYahooItem maps price, stock, seller and image fields', () => {
     id: 'yahoo:store_123', source: 'Yahoo!ショッピング', title: 'NB 996', price: 9700,
     url: 'https://item.example/y', available: true,
     imageUrl: 'https://img.example/y.jpg', shopName: 'Yahoo Shop', condition: 'new',
+    attributes: { sizes: [], colors: [], condition: 'new' },
   });
 });
 
