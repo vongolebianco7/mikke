@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
+    "security": "node scripts/security-check.mjs",
+    "compliance": "node scripts/compliance-check.mjs",
+    "build": "node --check src/app.js && node --check api/shopping-search.js && node --check src/server/requestGuard.js && node --check src/server/shoppingProviders.js && node scripts/compliance-check.mjs",
     "serve": "python3 -m http.server 4173"
   }
 }
