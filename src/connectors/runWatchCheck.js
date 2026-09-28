@@ -66,6 +66,8 @@ export async function runWatchCheck(watch, previousByCandidate = {}, options = {
       candidateId: enriched.id,
       price: enriched.price,
       available: enriched.available,
+      nearMatch: evaluation.nearMatch,
+      requiredMatch: evaluation.requiredMatch,
       observedAt: new Date().toISOString(),
     };
     const historyEntry = splitHistoryEntry(previousByCandidate[enriched.id]);
