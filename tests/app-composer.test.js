@@ -18,3 +18,12 @@ test('Watch composer visibly separates required preferred and notification condi
   assert.match(app, /通知条件/);
   assert.match(app, /data-role-toggle/);
 });
+
+test('Watch composer offers three distinct input modes before showing free text', () => {
+  assert.match(app, /かんたん/);
+  assert.match(app, /組み立て/);
+  assert.match(app, /文章で入力/);
+  assert.match(app, /data-composer-mode/);
+  assert.match(app, /composerMode/);
+  assert.match(css, /composer-mode/);
+});
