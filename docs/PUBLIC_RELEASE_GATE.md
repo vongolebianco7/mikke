@@ -24,6 +24,8 @@ Any code change after this evidence requires a fresh Gate A run before release.
 - Git integration: connected
 - Intended preview branch: `feat/mikke-mvp`
 - Purpose: iPhone/manual review only; this is not production approval.
+- Initial production scaffold on `main`: created successfully.
+- Preview trigger: branch commit pushed after the initial scaffold deployment.
 
 ## Gate B — Manual compliance
 
