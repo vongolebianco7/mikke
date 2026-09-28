@@ -38,15 +38,17 @@ function parsePriceTriggers(text, maxPrice, maxPriceRequired) {
   if (maxPrice !== undefined) {
     triggers.push({ type: 'below_absolute', value: maxPrice, reference: 'explicit', role: maxPriceRequired ? 'required' : 'notification' });
   }
-  if (/(今より|前回より).*(安く|値下がり)/.test(text)) {
+  const percent = text.match(/(\d{1,2})\s*%\s*以上(?:に)?(?:値下がり|安く)/);
+  const initialPercent = Boolean(percent && /(登録時|登録した時|最初)[^、,]*\d{1,2}\s*%/.test(text));
+  const previousPercent = Boolean(percent && /(今より|前回(?:確認)?より)[^、,]*\d{1,2}\s*%/.test(text));
+  if (/(今より|前回より).*(安く|値下がり)/.test(text) && !previousPercent) {
     triggers.push({ type: 'below_previous', reference: 'previous', role: 'notification' });
   }
-  if (/(登録時|登録した時|最初).*(安く|値下がり)/.test(text)) {
+  if (/(登録時|登録した時|最初).*(安く|値下がり)/.test(text) && !initialPercent) {
     triggers.push({ type: 'below_initial', reference: 'initial', role: 'notification' });
   }
-  const percent = text.match(/(\d{1,2})\s*%\s*以上(?:に)?(?:値下がり|安く)/);
   if (percent) {
-    triggers.push({ type: 'drop_percent', percent: Number(percent[1]), reference: 'previous', role: 'notification' });
+    triggers.push({ type: 'drop_percent', percent: Number(percent[1]), reference: initialPercent ? 'initial' : 'previous', role: 'notification' });
   }
   if (/(登録後最安値|登録してから最安値|Mikke.*最安値)/i.test(text)) {
     triggers.push({ type: 'new_watch_low', reference: 'observed_watch', role: 'notification' });
