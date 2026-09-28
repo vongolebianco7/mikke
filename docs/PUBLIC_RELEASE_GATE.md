@@ -8,24 +8,26 @@ PUBLIC_BETA is allowed only when Gate A, Gate B, and Gate C all pass.
 
 ## Gate A — Automated CI
 
-Evidence recorded from GitHub Actions run `36486907491` on branch head `9aa8da46b93485e6ad0af2a61c5f669297609c8a`:
+Evidence recorded from GitHub Actions run `36495034018` on feature code head `0c2f6d699249cbaac51187af9f6b4f72102e7027`:
 
 - [x] `test` passes
 - [x] `security` passes
 - [x] `compliance-static` passes
 - [x] `build` passes
 
+This run covers the Watch Intelligence redesign: backward-compatible Watch normalization, phrase suggestions, required/preferred/notification conditions, observed relative-price events, strictness/relaxation guidance, actionable Today ordering, local decision learning, and conservative strong-identifier product grouping.
+
 Any code change after this evidence requires a fresh Gate A run before release.
 
 ## Preview environment
 
-- Vercel project: `mikke-preview`
 - Git repository: `vongolebianco7/mikke`
-- Git integration: connected
-- Intended preview branch: `feat/mikke-mvp`
+- Feature branch: `feat/mikke-mvp`
+- Current temporary preview host: Floot view-only preview
+- Preview code pin: `0c2f6d699249cbaac51187af9f6b4f72102e7027`
 - Purpose: iPhone/manual review only; this is not production approval.
-- Initial production scaffold on `main`: created successfully.
-- Preview deployment: not yet generated; Vercel Git integration is not currently auto-deploying non-production branches.
+- The temporary preview is not a PUBLIC_BETA environment and is not evidence for Gate C.
+- Existing Vercel `main` production deployment remains the earlier safe scaffold and does not contain this feature branch.
 
 ## Gate B — Manual compliance
 
@@ -113,4 +115,4 @@ otherwise
 
 Current decision: **PUBLIC_BETA = BLOCKED**
 
-Reason: public provider documentation has been researched, but provider-side operator registration/acceptance, deployed iPhone visual verification, and production smoke testing remain incomplete.
+Reason: Gate A is green for the current feature code, but provider-side operator registration/acceptance, deployed iPhone attribution verification, and production smoke testing remain incomplete.
