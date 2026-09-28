@@ -7,11 +7,12 @@ function storage(seed = {}) {
   return { getItem:k=>map.has(k)?map.get(k):null, setItem:(k,v)=>map.set(k,String(v)), removeItem:k=>map.delete(k), keys:()=>[...map.keys()] };
 }
 
-test('clears only Mikke-owned local storage keys', () => {
-  const s = storage({ 'mikke.watches.v1':'[]', 'mikke.history.v1':'{}', other:'keep' });
+test('clears only Mikke-owned local storage keys including local decision learning', () => {
+  const s = storage({ 'mikke.watches.v1':'[]', 'mikke.history.v1':'{}', 'mikke.decisions.v1':'{}', other:'keep' });
   const result = clearMikkeLocalData(s);
   assert.deepEqual(result.cleared.sort(), [...MIKKE_LOCAL_KEYS].sort());
   assert.equal(s.getItem('mikke.watches.v1'), null);
   assert.equal(s.getItem('mikke.history.v1'), null);
+  assert.equal(s.getItem('mikke.decisions.v1'), null);
   assert.equal(s.getItem('other'), 'keep');
 });
