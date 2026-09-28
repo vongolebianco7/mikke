@@ -1,4 +1,5 @@
 import { evaluateCandidate, deriveEvents } from '../domain/evaluate.js';
+import { groupProducts } from '../domain/groupProducts.js';
 import { searchSampleShopping } from './sampleShopping.js';
 import { searchOfficialShopping } from './officialShopping.js';
 
@@ -15,6 +16,33 @@ function splitHistoryEntry(entry) {
     };
   }
   return { previous: entry, context: {} };
+}
+
+function appendCheaperProviderEvents(candidates, previousByCandidate, events) {
+  for (const group of groupProducts(candidates)) {
+    if (!group.identity || group.offers.length < 2) continue;
+    const currentCheapest = group.offers[0];
+    const previousOffers = group.offers
+      .map((offer) => ({ offer, previous: splitHistoryEntry(previousByCandidate[offer.id]).previous }))
+      .filter((entry) => Number.isFinite(entry.previous?.price))
+      .sort((a, b) => a.previous.price - b.previous.price);
+    if (!previousOffers.length) continue;
+    const previousCheapest = previousOffers[0];
+    if (
+      currentCheapest.id !== previousCheapest.offer.id
+      && Number.isFinite(currentCheapest.price)
+      && currentCheapest.price < previousCheapest.previous.price
+    ) {
+      events.push({
+        kind: 'cheaper_provider',
+        candidateId: currentCheapest.id,
+        previousCandidateId: previousCheapest.offer.id,
+        currentPrice: currentCheapest.price,
+        previousPrice: previousCheapest.previous.price,
+        identity: group.identity,
+      });
+    }
+  }
 }
 
 export async function runWatchCheck(watch, previousByCandidate = {}, options = {}) {
@@ -48,6 +76,8 @@ export async function runWatchCheck(watch, previousByCandidate = {}, options = {
     }));
     return { ...enriched, evaluation, observation: current };
   }).sort((a, b) => b.evaluation.score - a.evaluation.score || a.price - b.price);
+
+  appendCheaperProviderEvents(candidates, previousByCandidate, events);
 
   return {
     status: useOfficial ? 'ok' : 'demo',
