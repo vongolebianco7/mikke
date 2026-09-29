@@ -75,6 +75,15 @@ test('Watch composer is one domain-aware flow instead of three input modes', () 
   assert.match(modeCss, /unified-composer/);
 });
 
+test('unified composer is backed by one structured draft controller', () => {
+  assert.match(modes, /createComposerDraft/);
+  assert.match(modes, /switchComposerDomain/);
+  assert.match(modes, /applyParsedWatch/);
+  assert.match(modes, /composerDraft\.watch/);
+  assert.doesNotMatch(modes, /\bflightTravelDraft\b/);
+  assert.doesNotMatch(modes, /\bselectedPhrases\b/);
+});
+
 test('flight and hotel composer are driven by domain schema groups instead of shallow legacy option tables', () => {
   assert.match(modes, /createComposerModel/);
   assert.match(modes, /basic/);
@@ -86,7 +95,7 @@ test('flight and hotel composer are driven by domain schema groups instead of sh
 });
 
 test('flight composer keeps one structured Travel Intent draft', () => {
-  assert.match(modes, /flightTravelDraft/);
+  assert.match(modes, /composerDraft\.watch/);
   assert.match(modes, /applyFlightTravelIntentEdit/);
   assert.doesNotMatch(modes, /set_input_mode/);
 });
