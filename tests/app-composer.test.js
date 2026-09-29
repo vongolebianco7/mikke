@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { getDomainField } from '../src/domain/domainSchemas.js';
 
 const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const modes = readFileSync(new URL('../src/composerModes.js', import.meta.url), 'utf8');
@@ -31,9 +32,9 @@ test('v3 confirmation rendering resolves domain condition labels from the schema
   assert.match(app, /supportsPreferred/);
 });
 
-test('subcategory conditions resolve labels through the Watch target', () => {
-  assert.match(app, /getDomainField\(w\?\.domain,condition\?\.fieldId,w\?\.target\?\.subcategoryId\)/);
-  assert.match(app, /getDomainField\(watch\?\.domain,item\.fieldId,watch\?\.target\?\.subcategoryId\)/);
+test('subcategory conditions can resolve labels even from generic result rendering', () => {
+  assert.equal(getDomainField('appliance', 'totalCapacity')?.label, '総容量');
+  assert.equal(getDomainField('appliance', 'washCapacity')?.label, '洗濯容量');
 });
 
 test('result cards distinguish unsupported evidence from temporarily unknown evidence', () => {
