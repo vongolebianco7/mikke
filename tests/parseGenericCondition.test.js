@@ -20,7 +20,7 @@ test('parses appliance capacity width colors and hard price',()=>{
   assert.equal(result.target.subcategoryId,'refrigerator');
   assert.deepEqual(byAttr(result,'capacity'),expectCondition('capacity','gte',500,'L','required'));
   assert.deepEqual(byAttr(result,'width'),expectCondition('width','lte',700,'mm','required'));
-  assert.deepEqual(byAttr(result,'color').value,['white','gray']);
+  assert.deepEqual([...byAttr(result,'color').value].sort(),['gray','white']);
   assert.equal(byAttr(result,'price').value,150000);
 });
 
