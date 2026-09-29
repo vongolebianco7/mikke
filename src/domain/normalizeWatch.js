@@ -3,8 +3,10 @@ import {
   genericTriggerFromLegacy,
   normalizeDomainCondition,
   normalizeDomainWatch,
+  normalizeTrigger,
 } from './watchSchema.js';
 import { inferWatchDomain } from './domainSchemas.js';
+import { migrateV3FlightWatch, normalizeFlightTravelIntent } from './flightTravelIntent.js';
 
 const LEGACY_ATTRIBUTE_KEYS=['size','colors','excludeUsed','allowDisplay','origin','destination','directOnly','tripType'];
 const FIELD_MAP={
@@ -50,8 +52,24 @@ function addUniqueCondition(list,item){
   const key=`${item.fieldId}:${item.operator}:${JSON.stringify(item.value)}:${item.role}`;
   if(!list.some((x)=>`${x.fieldId}:${x.operator}:${JSON.stringify(x.value)}:${x.role}`===key))list.push(item);
 }
+function normalizeExistingV4Flight(watch){
+  return{
+    ...watch,
+    schemaVersion:4,
+    domain:'flight',
+    target:watch.target&&typeof watch.target==='object'&&!Array.isArray(watch.target)?{...watch.target}:{title:watch.title},
+    travelIntent:normalizeFlightTravelIntent(watch.travelIntent),
+    flightFilters:Array.isArray(watch.flightFilters)?watch.flightFilters.map(normalizeDomainCondition):[],
+    domainConditions:Array.isArray(watch.domainConditions)?watch.domainConditions.map(normalizeDomainCondition):[],
+    triggers:Array.isArray(watch.triggers)?watch.triggers.map(normalizeTrigger):[],
+    metadata:watch.metadata&&typeof watch.metadata==='object'&&!Array.isArray(watch.metadata)?{...watch.metadata}:{rawQuery:watch.rawQuery||''},
+    baseline:{initialObservedAt:watch.baseline?.initialObservedAt??null,initialPriceByCandidate:watch.baseline?.initialPriceByCandidate&&typeof watch.baseline.initialPriceByCandidate==='object'?{...watch.baseline.initialPriceByCandidate}:{}},
+    behavior:{...(watch.behavior&&typeof watch.behavior==='object'?watch.behavior:{}),decisionHistory:Array.isArray(watch.behavior?.decisionHistory)?[...watch.behavior.decisionHistory]:[]},
+  };
+}
 
 export function normalizeWatch(watch={}){
+  if(watch?.domain==='flight'&&watch?.schemaVersion===4&&watch.travelIntent)return normalizeExistingV4Flight(watch);
   const legacyConditions=watch.conditions&&typeof watch.conditions==='object'?watch.conditions:{};
   const existingAttributes=legacyConditions.attributes&&typeof legacyConditions.attributes==='object'?legacyConditions.attributes:{};
   const attributes={...existingAttributes};
@@ -102,5 +120,6 @@ export function normalizeWatch(watch={}){
     baseline:{initialObservedAt:watch.baseline?.initialObservedAt??null,initialPriceByCandidate:watch.baseline?.initialPriceByCandidate&&typeof watch.baseline.initialPriceByCandidate==='object'?{...watch.baseline.initialPriceByCandidate}:{}},
     behavior:{...(watch.behavior&&typeof watch.behavior==='object'?watch.behavior:{}),decisionHistory:Array.isArray(watch.behavior?.decisionHistory)?[...watch.behavior.decisionHistory]:[]},
   };
-  return normalizeDomainWatch(compatible);
+  const normalized=normalizeDomainWatch(compatible);
+  return domain==='flight'?migrateV3FlightWatch(normalized):normalized;
 }
