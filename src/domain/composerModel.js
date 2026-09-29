@@ -83,4 +83,30 @@ export function applyFlightTravelIntentEdit(watch={},edit={}){
   return {...watch,schemaVersion:4,domain:'flight',travelIntent:normalizeFlightTravelIntent(intent),flightFilters:Array.isArray(watch.flightFilters)?watch.flightFilters.map((x)=>({...x})):[],triggers:Array.isArray(watch.triggers)?watch.triggers.map((x)=>({...x})):[],metadata};
 }
 
+export function applyFlightFilterEdit(watch={},edit={}){
+  const existing=Array.isArray(watch.flightFilters)?watch.flightFilters.map((item)=>({...item})):[];
+  const next=existing.filter((item)=>item.fieldId!==edit.fieldId);
+  if(!edit.remove){
+    const normalized=normalizeDomainCondition({
+      id:edit.id||`flight-filter-${edit.fieldId}`,
+      fieldId:edit.fieldId,
+      operator:edit.operator,
+      value:structuredClone(edit.value),
+      unit:edit.unit,
+      role:edit.role||'required',
+      evidencePolicy:edit.evidencePolicy,
+    });
+    next.push(normalized);
+  }
+  return {
+    ...watch,
+    schemaVersion:4,
+    domain:'flight',
+    travelIntent:normalizeFlightTravelIntent(watch.travelIntent||createFlightTravelIntent()),
+    flightFilters:next,
+    triggers:Array.isArray(watch.triggers)?watch.triggers.map((item)=>({...item})):[],
+    metadata:{...(watch.metadata||{})},
+  };
+}
+
 export function composerOptionsFor(subject='',group='common'){const model=buildComposerModel(subject);const entries=group==='category'?model.category:group==='advanced'?model.advanced:model.common;return entries.map((entry)=>({...entry,phrases:attributePresetPhrases(entry.id)}))}
