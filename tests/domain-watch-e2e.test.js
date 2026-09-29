@@ -8,9 +8,13 @@ function byField(watch, fieldId) {
 }
 
 function assertSchemaBacked(watch) {
-  assert.equal(watch.schemaVersion, 3);
+  assert.equal(watch.schemaVersion, watch.domain === 'flight' ? 4 : 3);
   assert.ok(watch.domain);
   assert.ok(Array.isArray(watch.domainConditions));
+  if (watch.domain === 'flight') {
+    assert.ok(watch.travelIntent && typeof watch.travelIntent === 'object');
+    assert.ok(Array.isArray(watch.flightFilters));
+  }
   for (const condition of watch.domainConditions) {
     assert.ok(getDomainField(watch.domain, condition.fieldId, watch.target?.subcategoryId), `${watch.domain}.${condition.fieldId} must exist in its Domain Schema`);
   }
@@ -20,13 +24,13 @@ test('flight journey preserves route, round trip, nonstop, airline, time and inf
   const watch = parseWatchQuery('東京からホノルル、往復、直行便、ANAかJAL、午前発、乳児1人、12万円以下になったら');
   assertSchemaBacked(watch);
   assert.equal(watch.domain, 'flight');
-  assert.equal(byField(watch, 'origin')?.value, '東京');
-  assert.equal(byField(watch, 'destination')?.value, 'ホノルル');
-  assert.equal(byField(watch, 'tripType')?.value, 'round_trip');
+  assert.equal(watch.travelIntent.originSet.places[0]?.label, '東京');
+  assert.equal(watch.travelIntent.destinationSet.places[0]?.label, 'ホノルル');
+  assert.equal(watch.travelIntent.tripPattern, 'round_trip');
   assert.equal(byField(watch, 'nonstopOnly')?.value, true);
   assert.deepEqual(byField(watch, 'allowedAirlines')?.value, ['ANA', 'JAL']);
   assert.deepEqual(byField(watch, 'departureTimeRange')?.value, ['00:00', '11:59']);
-  assert.equal(byField(watch, 'infants')?.value, 1);
+  assert.equal(watch.travelIntent.travellers.infantsOnLap, 1);
   assert.ok(watch.triggers.some((trigger) => trigger.metric === 'price' && trigger.operator === 'lte' && trigger.value === 120000));
 });
 
