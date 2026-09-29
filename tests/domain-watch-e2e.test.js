@@ -12,7 +12,7 @@ function assertSchemaBacked(watch) {
   assert.ok(watch.domain);
   assert.ok(Array.isArray(watch.domainConditions));
   for (const condition of watch.domainConditions) {
-    assert.ok(getDomainField(watch.domain, condition.fieldId), `${watch.domain}.${condition.fieldId} must exist in its Domain Schema`);
+    assert.ok(getDomainField(watch.domain, condition.fieldId, watch.target?.subcategoryId), `${watch.domain}.${condition.fieldId} must exist in its Domain Schema`);
   }
 }
 
@@ -57,6 +57,7 @@ test('appliance journey keeps refrigerator capacity, width, color and price', ()
   const watch = parseWatchQuery('500L以上の冷蔵庫、幅70cm以下、白、15万円以下');
   assertSchemaBacked(watch);
   assert.equal(watch.domain, 'appliance');
+  assert.equal(watch.target?.subcategoryId, 'refrigerator');
   assert.equal(byField(watch, 'totalCapacity')?.value, 500);
   assert.equal(byField(watch, 'width')?.value, 700);
   assert.deepEqual(byField(watch, 'color')?.value, ['white']);
