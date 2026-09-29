@@ -1,4 +1,7 @@
 import { evaluateCandidate, deriveEvents } from '../domain/evaluate.js';
+import { factsFromCandidate, factKnown, factUnknown } from '../domain/candidateFacts.js';
+import { derivePurchaseMetrics } from '../domain/purchaseMetrics.js';
+import { evaluateTriggers } from '../domain/triggerEngine.js';
 import { groupProducts } from '../domain/groupProducts.js';
 import { searchSampleShopping } from './sampleShopping.js';
 import { searchOfficialShopping } from './officialShopping.js';
@@ -16,6 +19,26 @@ function splitHistoryEntry(entry) {
     };
   }
   return { previous: entry, context: {} };
+}
+
+function factsFromObservation(observation) {
+  if (!observation) return {};
+  if (observation.facts && typeof observation.facts === 'object') return observation.facts;
+  return {
+    price: Number.isFinite(observation.price) ? factKnown(observation.price, { source: 'mikke_history' }) : factUnknown({ source: 'mikke_history' }),
+    availability: observation.available === true ? factKnown('in_stock', { source: 'mikke_history' })
+      : observation.available === false ? factKnown('out_of_stock', { source: 'mikke_history' })
+        : factUnknown({ source: 'mikke_history' }),
+  };
+}
+
+function pushUnique(events, additions) {
+  for (const addition of additions) {
+    const duplicate = events.some((event) => event.kind === addition.kind
+      && event.candidateId === addition.candidateId
+      && (event.currentPrice ?? event.currentValue) === (addition.currentPrice ?? addition.currentValue));
+    if (!duplicate) events.push(addition);
+  }
 }
 
 function appendCheaperProviderEvents(candidates, previousByCandidate, events) {
@@ -62,21 +85,35 @@ export async function runWatchCheck(watch, previousByCandidate = {}, options = {
   const candidates = rawCandidates.map((candidate) => {
     const enriched = { ...candidate, dataMode, referencePriceDefined: dataMode === 'sample' && Number.isFinite(candidate.previousPrice) };
     const evaluation = evaluateCandidate(watch, enriched);
+    const baseFacts = factsFromCandidate(enriched);
+    const currentFacts = { ...baseFacts, ...derivePurchaseMetrics(baseFacts) };
     const current = {
       candidateId: enriched.id,
       price: enriched.price,
       available: enriched.available,
       nearMatch: evaluation.nearMatch,
       requiredMatch: evaluation.requiredMatch,
+      facts: currentFacts,
       observedAt: new Date().toISOString(),
     };
     const historyEntry = splitHistoryEntry(previousByCandidate[enriched.id]);
-    events.push(...deriveEvents(historyEntry.previous, current, evaluation, {
+    const legacyEvents = deriveEvents(historyEntry.previous, current, evaluation, {
       ...historyEntry.context,
       priceTriggers: watch.conditions?.priceTriggers || [],
       stateTriggers: watch.conditions?.stateTriggers || [],
-    }));
-    return { ...enriched, evaluation, observation: current };
+    });
+    legacyEvents.forEach((event) => { if (!event.candidateId) event.candidateId = enriched.id; });
+    pushUnique(events, legacyEvents);
+
+    const genericEvents = evaluateTriggers(
+      watch.triggers || [],
+      currentFacts,
+      factsFromObservation(historyEntry.previous),
+      historyEntry.context,
+    ).map((event) => ({ ...event, candidateId: enriched.id }));
+    pushUnique(events, genericEvents);
+
+    return { ...enriched, evaluation, facts: currentFacts, observation: current };
   }).sort((a, b) => b.evaluation.score - a.evaluation.score || a.price - b.price);
 
   appendCheaperProviderEvents(candidates, previousByCandidate, events);
