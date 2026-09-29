@@ -31,6 +31,11 @@ test('v3 confirmation rendering resolves domain condition labels from the schema
   assert.match(app, /supportsPreferred/);
 });
 
+test('subcategory conditions resolve labels through the Watch target', () => {
+  assert.match(app, /getDomainField\(w\?\.domain,condition\?\.fieldId,w\?\.target\?\.subcategoryId\)/);
+  assert.match(app, /getDomainField\(watch\?\.domain,item\.fieldId,watch\?\.target\?\.subcategoryId\)/);
+});
+
 test('result cards distinguish unsupported evidence from temporarily unknown evidence', () => {
   assert.match(app, /summarizeEvidenceState/);
   assert.match(evidenceModule, /このデータ元では判定不可/);
