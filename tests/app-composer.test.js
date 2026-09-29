@@ -7,6 +7,7 @@ const modes = readFileSync(new URL('../src/composerModes.js', import.meta.url), 
 const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const modeCss = readFileSync(new URL('../composer-modes.css', import.meta.url), 'utf8');
 const evidenceCss = readFileSync(new URL('../result-evidence.css', import.meta.url), 'utf8');
+const evidenceModule = readFileSync(new URL('../src/domain/resultEvidence.js', import.meta.url), 'utf8');
 
 test('Watch composer wires deterministic phrase suggestions into the UI', () => {
   assert.match(app, /suggestWatchPhrases/);
@@ -32,8 +33,8 @@ test('v3 confirmation rendering resolves domain condition labels from the schema
 
 test('result cards distinguish unsupported evidence from temporarily unknown evidence', () => {
   assert.match(app, /summarizeEvidenceState/);
-  assert.match(app, /このデータ元では判定不可/);
-  assert.match(app, /未確認/);
+  assert.match(evidenceModule, /このデータ元では判定不可/);
+  assert.match(evidenceModule, /未確認/);
   assert.match(evidenceCss, /evidence-state/);
 });
 
