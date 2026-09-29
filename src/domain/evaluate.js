@@ -1,5 +1,6 @@
 import { factsFromCandidate } from './candidateFacts.js';
 import { evaluateGenericConditions, evaluateDomainConditions } from './conditionEngine.js';
+import { evaluateFlightTravelIntent } from './flightIntentEvaluation.js';
 
 function normalizeColor(value = '') {
   return value.replace('灰色', 'グレー').toLowerCase();
@@ -55,8 +56,24 @@ function shapeEvaluation(result) {
   };
 }
 
+function combinedFlightEvaluation(intentResult, filterResult) {
+  const outcomes=[...(intentResult.outcomes||[]),...(filterResult.outcomes||[])];
+  const failedRequired=[...(intentResult.failedRequired||[]),...(filterResult.failedRequired||[])];
+  const unknownRequired=[...(intentResult.unknownRequired||[]),...(filterResult.unknownRequired||[])];
+  const unsupportedRequired=[...(intentResult.unsupportedRequired||[]),...(filterResult.unsupportedRequired||[])];
+  let totalWeight=0,passedWeight=0;
+  for(const outcome of outcomes){const weight=outcome.condition?.role==='required'?2:1;totalWeight+=weight;if(outcome.state==='pass')passedWeight+=weight;}
+  const score=totalWeight?Math.round((passedWeight/totalWeight)*100):50;
+  return shapeEvaluation({requiredMatch:failedRequired.length===0&&unknownRequired.length===0&&unsupportedRequired.length===0,score,outcomes,failedRequired,unknownRequired,unsupportedRequired});
+}
+
 export function evaluateCandidate(watch, candidate) {
   const facts = factsFromCandidate(candidate);
+  if(watch?.domain==='flight'&&watch?.schemaVersion===4&&watch.travelIntent){
+    const intentResult=evaluateFlightTravelIntent(watch.travelIntent,candidate?.itinerary||{});
+    const filterResult=evaluateDomainConditions(Array.isArray(watch.flightFilters)?watch.flightFilters:[],facts);
+    return combinedFlightEvaluation(intentResult,filterResult);
+  }
   if (Array.isArray(watch.domainConditions) && watch.domainConditions.length) {
     return shapeEvaluation(evaluateDomainConditions(watch.domainConditions, facts));
   }
