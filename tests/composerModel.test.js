@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildComposerModel, attributePresetPhrases, createComposerModel, applyComposerCondition, applyFlightTravelIntentEdit } from '../src/domain/composerModel.js';
+import { buildComposerModel, attributePresetPhrases, createComposerModel, applyComposerCondition, applyFlightTravelIntentEdit, applyFlightFilterEdit } from '../src/domain/composerModel.js';
 import { createFlightTravelIntent } from '../src/domain/flightTravelIntent.js';
 
 test('refrigerator composer prioritizes category-specific conditions and common triggers',()=>{
@@ -69,6 +69,18 @@ test('Travel Intent composer mode switch changes metadata only and preserves str
   assert.equal(switched.metadata.inputMode,'text');
   assert.deepEqual(switched.travelIntent.destinationSet.places,watch.travelIntent.destinationSet.places);
   assert.notEqual(switched.travelIntent,watch.travelIntent);
+});
+
+test('flight filter edits add replace and remove structured filters without mutating the Watch',()=>{
+  const watch={schemaVersion:4,domain:'flight',travelIntent:createFlightTravelIntent(),flightFilters:[],triggers:[]};
+  const direct=applyFlightFilterEdit(watch,{fieldId:'nonstopOnly',operator:'is_true',value:true,role:'required'});
+  assert.equal(direct.flightFilters.length,1);
+  assert.equal(direct.flightFilters[0].fieldId,'nonstopOnly');
+  const airline=applyFlightFilterEdit(direct,{fieldId:'allowedAirlines',operator:'in',value:['ANA','JAL'],role:'preferred'});
+  assert.equal(airline.flightFilters.length,2);
+  const removed=applyFlightFilterEdit(airline,{fieldId:'nonstopOnly',remove:true});
+  assert.deepEqual(removed.flightFilters.map((x)=>x.fieldId),['allowedAirlines']);
+  assert.deepEqual(watch.flightFilters,[]);
 });
 
 test('five phase-1 categories expose progressive groups without dumping the full registry',()=>{
