@@ -64,14 +64,15 @@ test('result cards distinguish unsupported evidence from temporarily unknown evi
   assert.match(evidenceCss, /evidence-state/);
 });
 
-test('Watch composer offers three distinct input modes before showing free text', () => {
-  assert.match(modes, /かんたん/);
-  assert.match(modes, /組み立て/);
-  assert.match(modes, /文章で入力/);
-  assert.match(modes, /data-composer-mode/);
-  assert.match(modes, /composerMode/);
-  assert.match(modeCss, /composer-mode/);
-  assert.match(modeCss, /composer-awaiting-mode>textarea/);
+test('Watch composer is one domain-aware flow instead of three input modes', () => {
+  assert.doesNotMatch(modes, /かんたん/);
+  assert.doesNotMatch(modes, /data-composer-mode/);
+  assert.doesNotMatch(modes, /composerMode/);
+  assert.doesNotMatch(modeCss, /mode-cards/);
+  assert.match(modes, /何を探す？/);
+  assert.match(modes, /文章から条件を作る/);
+  assert.match(modes, /data-composer-domain/);
+  assert.match(modeCss, /unified-composer/);
 });
 
 test('flight and hotel composer are driven by domain schema groups instead of shallow legacy option tables', () => {
@@ -84,12 +85,10 @@ test('flight and hotel composer are driven by domain schema groups instead of sh
   assert.doesNotMatch(modes, /legacyBuilderOptions/);
 });
 
-test('flight composer keeps one structured Travel Intent draft across mode switches', () => {
+test('flight composer keeps one structured Travel Intent draft', () => {
   assert.match(modes, /flightTravelDraft/);
   assert.match(modes, /applyFlightTravelIntentEdit/);
-  assert.match(modes, /set_input_mode/);
-  const modeSwitch = modes.slice(modes.indexOf("const modeButton=event.target.closest('[data-composer-mode]')"), modes.indexOf("const easyTypeButton=event.target.closest('[data-easy-type]')"));
-  assert.doesNotMatch(modeSwitch, /hydrateFromRaw/);
+  assert.doesNotMatch(modes, /set_input_mode/);
 });
 
 test('flight composer uses flight-search ordering and keeps dates and notifications distinct', () => {
