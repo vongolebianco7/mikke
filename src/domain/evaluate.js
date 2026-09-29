@@ -1,3 +1,6 @@
+import { factsFromCandidate } from './candidateFacts.js';
+import { evaluateGenericConditions } from './conditionEngine.js';
+
 function normalizeColor(value = '') {
   return value.replace('灰色', 'グレー').toLowerCase();
 }
@@ -30,6 +33,27 @@ function checkKey(key, conditions, candidate) {
 }
 
 export function evaluateCandidate(watch, candidate) {
+  if (Array.isArray(watch.genericConditions) && watch.genericConditions.length) {
+    const generic = evaluateGenericConditions(watch.genericConditions, factsFromCandidate(candidate));
+    const reasons = generic.outcomes.map(({ condition, state }) => ({
+      key: condition.id || condition.attributeId,
+      ok: state === 'pass',
+      state,
+    }));
+    const nearMatch = !generic.requiredMatch
+      && generic.unknownRequired.length === 0
+      && generic.failedRequired.length === 1
+      && generic.score >= 60;
+    return {
+      requiredMatch: generic.requiredMatch,
+      score: generic.score,
+      reasons,
+      nearMatch,
+      failedRequired: generic.failedRequired,
+      unknownRequired: generic.unknownRequired,
+    };
+  }
+
   const required = watch.requiredKeys || [];
   const preferred = watch.preferredKeys || [];
   const requiredResults = required.map((key) => [key, checkKey(key, watch.conditions, candidate)]);
@@ -41,7 +65,7 @@ export function evaluateCandidate(watch, candidate) {
   const reasons = [...requiredResults, ...preferredResults].map(([key, ok]) => ({ key, ok }));
   const failedRequired = requiredResults.filter(([, ok]) => !ok).map(([key]) => key);
   const nearMatch = !requiredMatch && failedRequired.length === 1 && score >= 60;
-  return { requiredMatch, score, reasons, nearMatch, failedRequired };
+  return { requiredMatch, score, reasons, nearMatch, failedRequired, unknownRequired: [] };
 }
 
 function numeric(value) {
