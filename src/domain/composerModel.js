@@ -2,6 +2,7 @@ import { getAttributeDefinition } from './attributeRegistry.js';
 import { getCategoryTemplate, inferProductCategory } from './categoryTemplates.js';
 import { getDomainSchema, inferWatchDomain, listDomainFields, getDomainTriggerSuggestions } from './domainSchemas.js';
 import { normalizeDomainCondition, normalizeDomainWatch } from './watchSchema.js';
+import { createFlightTravelIntent, normalizeFlightTravelIntent } from './flightTravelIntent.js';
 
 const COMMON_IDS=['brand','price','condition','color'];
 const TRIGGER_PRESETS={
@@ -45,6 +46,41 @@ export function applyComposerCondition(watch={},draft={}){
   const next=existing.filter((item)=>!(item.fieldId===normalized.fieldId&&item.operator===normalized.operator));
   next.push(normalized);
   return normalizeDomainWatch({...watch,domainConditions:next,metadata:{...(watch.metadata||{})}});
+}
+
+function dateModeFor(options){if(!options.length)return'anytime';if(options.length>1)return'any_of';return options[0]?.kind||'anytime'}
+export function applyFlightTravelIntentEdit(watch={},edit={}){
+  const current=normalizeFlightTravelIntent(watch.travelIntent||createFlightTravelIntent());
+  const intent=structuredClone(current);
+  const metadata={...(watch.metadata||{})};
+  if(edit.type==='add_place'){
+    const key=edit.set==='origin'?'originSet':'destinationSet';
+    const places=[...intent[key].places];
+    const id=edit.place?.id;
+    if(edit.place&&(!id||!places.some((p)=>p.id===id)))places.push({...edit.place});
+    intent[key]={...intent[key],places,mode:places.length>1?'any_of':'specific'};
+  } else if(edit.type==='remove_place'){
+    const key=edit.set==='origin'?'originSet':'destinationSet';
+    const places=intent[key].places.filter((p,index)=>edit.id!==undefined?p.id!==edit.id:index!==edit.index);
+    intent[key]={...intent[key],places,mode:places.length>1?'any_of':places.length===1?'specific':edit.set==='destination'&&intent[key].mode==='anywhere'?'anywhere':'specific'};
+  } else if(edit.type==='set_place_mode'){
+    const key=edit.set==='origin'?'originSet':'destinationSet';
+    intent[key]={...intent[key],mode:edit.mode,places:edit.mode==='anywhere'?[]:intent[key].places};
+  } else if(edit.type==='add_date_option'){
+    const options=[...intent.dateSet.options,structuredClone(edit.option)];
+    intent.dateSet={mode:dateModeFor(options),options};
+  } else if(edit.type==='remove_date_option'){
+    const options=intent.dateSet.options.filter((_,index)=>index!==edit.index);
+    intent.dateSet={mode:dateModeFor(options),options};
+  } else if(edit.type==='replace_date_option'){
+    const options=intent.dateSet.options.map((option,index)=>index===edit.index?structuredClone(edit.option):option);
+    intent.dateSet={mode:dateModeFor(options),options};
+  } else if(edit.type==='set_trip_pattern')intent.tripPattern=edit.value;
+  else if(edit.type==='set_travellers')intent.travellers={...intent.travellers,...structuredClone(edit.value||{})};
+  else if(edit.type==='set_cabin')intent.cabin={...intent.cabin,...structuredClone(edit.value||{})};
+  else if(edit.type==='set_payment_intent')intent.paymentIntent={...intent.paymentIntent,...structuredClone(edit.value||{})};
+  else if(edit.type==='set_input_mode')metadata.inputMode=edit.mode;
+  return {...watch,schemaVersion:4,domain:'flight',travelIntent:normalizeFlightTravelIntent(intent),flightFilters:Array.isArray(watch.flightFilters)?watch.flightFilters.map((x)=>({...x})):[],triggers:Array.isArray(watch.triggers)?watch.triggers.map((x)=>({...x})):[],metadata};
 }
 
 export function composerOptionsFor(subject='',group='common'){const model=buildComposerModel(subject);const entries=group==='category'?model.category:group==='advanced'?model.advanced:model.common;return entries.map((entry)=>({...entry,phrases:attributePresetPhrases(entry.id)}))}
