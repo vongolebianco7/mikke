@@ -6,6 +6,7 @@ const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const modes = readFileSync(new URL('../src/composerModes.js', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const modeCss = readFileSync(new URL('../composer-modes.css', import.meta.url), 'utf8');
+const evidenceCss = readFileSync(new URL('../result-evidence.css', import.meta.url), 'utf8');
 
 test('Watch composer wires deterministic phrase suggestions into the UI', () => {
   assert.match(app, /suggestWatchPhrases/);
@@ -33,7 +34,7 @@ test('result cards distinguish unsupported evidence from temporarily unknown evi
   assert.match(app, /summarizeEvidenceState/);
   assert.match(app, /このデータ元では判定不可/);
   assert.match(app, /未確認/);
-  assert.match(css, /evidence-state/);
+  assert.match(evidenceCss, /evidence-state/);
 });
 
 test('Watch composer offers three distinct input modes before showing free text', () => {
