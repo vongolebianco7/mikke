@@ -27,13 +27,15 @@ test('loadWatches supplies safe defaults without discarding legacy fields', () =
   assert.deepEqual(watch.preferredKeys,['colors']);
 });
 
-test('loadWatches accepts mixed v1 v2 and v3 records without dropping entries',()=>{
+test('loadWatches accepts mixed legacy through v4 records without dropping entries',()=>{
   const watches=loadWatches(storageWith([
     {id:'v1',type:'flight',conditions:{origin:'東京',destination:'札幌'},requiredKeys:['origin','destination']},
     {id:'v2',schemaVersion:2,target:{categoryId:'appliances',subcategoryId:'refrigerator'},genericConditions:[{attributeId:'capacity',operator:'gte',value:500,unit:'L',role:'required',source:'category'}]},
     {id:'v3',schemaVersion:3,domain:'hotel',target:{title:'軽井沢'},domainConditions:[{fieldId:'freeCancellation',operator:'is_true',value:true,role:'preferred'}]},
   ]));
   assert.deepEqual(watches.map((w)=>w.id),['v1','v2','v3']);
-  assert.deepEqual(watches.map((w)=>w.schemaVersion),[3,3,3]);
+  assert.deepEqual(watches.map((w)=>w.schemaVersion),[4,3,3]);
   assert.deepEqual(watches.map((w)=>w.domain),['flight','appliance','hotel']);
+  assert.deepEqual(watches[0].travelIntent.originSet.places,['東京']);
+  assert.deepEqual(watches[0].travelIntent.destinationSet.places,['札幌']);
 });
