@@ -11,7 +11,7 @@ function liveFormDraft(raw){
   const form=document.querySelector('#watch-form');
   const input=form?.querySelector('#query');
   const key=String(raw||'').trim();
-  if(!form?._mikkeDraft||String(input?.value||'').trim()!==key)return null;
+  if(form?.dataset?.submitStructured!=='true'||!form?._mikkeDraft||String(input?.value||'').trim()!==key)return null;
   return structuredClone(form._mikkeDraft);
 }
 
