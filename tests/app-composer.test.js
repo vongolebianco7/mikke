@@ -29,6 +29,13 @@ test('v3 confirmation rendering resolves domain condition labels from the schema
   assert.match(app, /supportsPreferred/);
 });
 
+test('result cards distinguish unsupported evidence from temporarily unknown evidence', () => {
+  assert.match(app, /summarizeEvidenceState/);
+  assert.match(app, /このデータ元では判定不可/);
+  assert.match(app, /未確認/);
+  assert.match(css, /evidence-state/);
+});
+
 test('Watch composer offers three distinct input modes before showing free text', () => {
   assert.match(modes, /かんたん/);
   assert.match(modes, /組み立て/);
