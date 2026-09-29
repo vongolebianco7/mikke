@@ -32,6 +32,15 @@ test('v3 confirmation rendering resolves domain condition labels from the schema
   assert.match(app, /supportsPreferred/);
 });
 
+test('v4 flight confirmation renders Travel Intent separately from filters and notifications', () => {
+  assert.match(app, /flightIntentChips/);
+  assert.match(app, /flightIntentGroupsHtml/);
+  assert.match(app, /travelIntent/);
+  assert.match(app, /flightFilters/);
+  assert.match(app, /旅程/);
+  assert.match(app, /日付候補/);
+});
+
 test('subcategory conditions can resolve labels even from generic result rendering', () => {
   assert.equal(getDomainField('appliance', 'totalCapacity')?.label, '総容量');
   assert.equal(getDomainField('appliance', 'washCapacity')?.label, '洗濯容量');
