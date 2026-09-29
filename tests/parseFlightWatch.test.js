@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFlightWatch } from '../src/domain/parseFlightWatch.js';
 
-const byField=(r,id)=>r.domainConditions.find((c)=>c.fieldId===id);
+const byField=(r,id)=>r.domainConditions?.find((c)=>c.fieldId===id);
 const byMetric=(r,id)=>r.triggers.find((t)=>t.metric===id);
 
 test('parses route trip type nonstop and stop limit without swallowing later clauses',()=>{
@@ -52,4 +52,32 @@ test('ambiguous unsupported date wording is preserved in metadata rather than fa
   const r=parseFlightWatch('東京からホノルル、来月の安い日');
   assert.equal(byField(r,'outboundDate'),undefined);
   assert.match(r.metadata.unparsedClauses.join(' '),/来月/);
+});
+
+test('compiles multiple destination alternatives into one Travel Intent',()=>{
+  const r=parseFlightWatch('東京からホノルルかシドニー、往復、直行便');
+  assert.equal(r.schemaVersion,4);
+  assert.equal(r.travelIntent.destinationSet.mode,'any_of');
+  assert.deepEqual(r.travelIntent.destinationSet.places.map((p)=>p.label),['ホノルル','シドニー']);
+  assert.equal(r.travelIntent.tripPattern,'round_trip');
+  assert.ok(r.flightFilters.some((f)=>f.fieldId==='nonstopOnly'&&f.value===true));
+});
+
+test('compiles multiple exact date alternatives without replacing either option',()=>{
+  const r=parseFlightWatch('東京からホノルル、2027-01-10〜2027-01-14 または 2027-02-07〜2027-02-11');
+  assert.equal(r.travelIntent.dateSet.mode,'any_of');
+  assert.deepEqual(r.travelIntent.dateSet.options,[
+    {kind:'exact',outboundDate:'2027-01-10',returnDate:'2027-01-14'},
+    {kind:'exact',outboundDate:'2027-02-07',returnDate:'2027-02-11'},
+  ]);
+});
+
+test('compiles month range and anytime date intents with stay length',()=>{
+  const month=parseFlightWatch('東京からホノルル、2027年2月のどこか、5〜7泊');
+  assert.deepEqual(month.travelIntent.dateSet.options,[{kind:'month',year:2027,month:2,stayLength:{minNights:5,maxNights:7}}]);
+  const range=parseFlightWatch('東京からホノルル、2027-03-20から2027-03-31の間、3〜5泊');
+  assert.deepEqual(range.travelIntent.dateSet.options,[{kind:'range',startDate:'2027-03-20',endDate:'2027-03-31',stayLength:{minNights:3,maxNights:5}}]);
+  const anytime=parseFlightWatch('東京からどこでも、いつでも、4〜8泊');
+  assert.equal(anytime.travelIntent.destinationSet.mode,'anywhere');
+  assert.deepEqual(anytime.travelIntent.dateSet.options,[{kind:'anytime',stayLength:{minNights:4,maxNights:8}}]);
 });
