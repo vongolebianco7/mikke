@@ -90,10 +90,9 @@ test('flight composer uses flight-search ordering and keeps dates and notificati
   assert.match(modeCss, /flight-primary-filters/);
 });
 
-test('app submission consumes the structured flight draft instead of reparsing display text', () => {
+test('flight composer publishes the current structured draft on the form for save integration', () => {
   assert.match(modes, /_mikkeFlightDraft/);
-  assert.match(app, /_mikkeFlightDraft/);
-  assert.match(app, /schemaVersion===4/);
+  assert.match(modes, /publishFlightDraft/);
 });
 
 test('travel composer keeps advanced conditions progressively disclosed on mobile', () => {
