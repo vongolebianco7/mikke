@@ -11,6 +11,30 @@ test('shopping check returns evaluated candidates sorted by score then price', a
   assert.equal(result.events.some((event) => event.kind === 'condition_match'), true);
 });
 
+test('v3 product domains use the approved shopping connector path', async () => {
+  for (const domain of ['fashion','appliance','furniture','food','used_car']) {
+    let calls=0;
+    const watch={id:`w-${domain}`,schemaVersion:3,domain,title:domain,rawQuery:domain,domainConditions:[],triggers:[]};
+    const fetchImpl=async()=>{calls+=1;return{ok:true,json:async()=>({items:[{id:`${domain}:1`,title:domain,price:1000,available:true,attributes:{}}],providers:[{name:'test',status:'ok'}]})}};
+    const result=await runWatchCheck(watch,{}, {fetchImpl});
+    assert.equal(calls,1,`${domain} should call shopping provider path once`);
+    assert.equal(result.status,'ok');
+    assert.equal(result.candidates.length,1);
+  }
+});
+
+test('flight and hotel v3 Watches stay connector_pending and make zero provider calls', async () => {
+  for (const domain of ['flight','hotel']) {
+    let calls=0;
+    const watch={id:`w-${domain}`,schemaVersion:3,domain,title:domain,rawQuery:domain,domainConditions:[],triggers:[]};
+    const result=await runWatchCheck(watch,{}, {fetchImpl:async()=>{calls+=1;throw new Error('must not call')}});
+    assert.equal(calls,0);
+    assert.equal(result.status,'connector_pending');
+    assert.deepEqual(result.candidates,[]);
+    assert.deepEqual(result.events,[]);
+  }
+});
+
 test('shopping check passes Mikke-observed price context into event derivation', async () => {
   const watch = {
     id:'w-price', type:'shopping', title:'996', rawQuery:'NB 996、登録後最安値、10%以上値下がり',
