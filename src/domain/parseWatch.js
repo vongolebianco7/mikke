@@ -14,12 +14,8 @@ function parseStateTriggers(text){const triggers=[];if(/(在庫復活|再入荷)
 
 function legacySummary(text,type){
   const conditions={},maxPrice=parsePrice(text);if(maxPrice!==undefined)conditions.maxPrice=maxPrice;
-  if(type==='shopping'){
-    const size=parseSize(text);if(size)conditions.size=size;const colors=COLOR_WORDS.filter((color)=>text.includes(color));if(colors.length)conditions.colors=[...new Set(colors.map((color)=>color==='灰色'?'グレー':color))];if(/(中古不可|中古は嫌|中古除外|新品のみ|新品)/.test(text))conditions.excludeUsed=true;if(/(展示品.*OK|展示品.*可)/.test(text))conditions.allowDisplay=true;
-  }
-  if(type==='flight'){
-    const route=text.match(/(.+?)から(.+?)(?:、|,|\s|$)/);if(route){conditions.origin=route[1].trim();conditions.destination=route[2].trim()}if(text.includes('直行便'))conditions.directOnly=true;if(text.includes('往復'))conditions.tripType='roundtrip';if(text.includes('片道'))conditions.tripType='oneway';
-  }
+  if(type==='shopping'){const size=parseSize(text);if(size)conditions.size=size;const colors=COLOR_WORDS.filter((color)=>text.includes(color));if(colors.length)conditions.colors=[...new Set(colors.map((color)=>color==='灰色'?'グレー':color))];if(/(中古不可|中古は嫌|中古除外|新品のみ|新品)/.test(text))conditions.excludeUsed=true;if(/(展示品.*OK|展示品.*可)/.test(text))conditions.allowDisplay=true;}
+  if(type==='flight'){const route=text.match(/(.+?)から(.+?)(?:、|,|\s|$)/);if(route){conditions.origin=route[1].trim();conditions.destination=route[2].trim()}if(text.includes('直行便'))conditions.directOnly=true;if(text.includes('往復'))conditions.tripType='roundtrip';if(text.includes('片道'))conditions.tripType='oneway';}
   if(type==='hotel'){const place=text.split(/[、,]/)[0].replace(/ホテル|宿|旅館/g,'').trim();if(place)conditions.destination=place}
   const requiredKeys=[],preferredKeys=[],maxPriceRequired=maxPrice!==undefined&&!/(なったら|教えて|通知|送料込み|送料込)/.test(text);if(maxPrice!==undefined&&maxPriceRequired)requiredKeys.push('maxPrice');if(conditions.size){if(includesPreferredLanguage(text,conditions.size))preferredKeys.push('size');else requiredKeys.push('size')}if(conditions.origin)requiredKeys.push('origin');if(conditions.destination)requiredKeys.push('destination');if(conditions.directOnly)requiredKeys.push('directOnly');if(conditions.excludeUsed)requiredKeys.push('excludeUsed');if(conditions.colors){const colorToken=conditions.colors[0];if(includesRequiredLanguage(text,colorToken))requiredKeys.push('colors');else preferredKeys.push('colors')}
   conditions.attributes=Object.fromEntries(['size','colors','excludeUsed','allowDisplay','origin','destination','directOnly','tripType'].filter((key)=>conditions[key]!==undefined).map((key)=>[key,conditions[key]]));conditions.priceTriggers=parsePriceTriggers(text,maxPrice,maxPriceRequired);conditions.stateTriggers=parseStateTriggers(text);
@@ -33,5 +29,5 @@ export function parseWatchQuery(raw){
     return{...base,schemaVersion:3,domain:parsed.domain,target:{...parsed.target,title:base.title},domainConditions:parsed.domainConditions,triggers:parsed.triggers,metadata:{...parsed.metadata,inputMode:'text'}};
   }
   const generic=parseGenericConditionClauses(text);
-  return{...base,schemaVersion:2,target:{...generic.target,title:base.title},genericConditions:generic.conditions,triggers:generic.triggers,metadata:{rawQuery:text,inputMode:'text'}};
+  return{...base,schemaVersion:3,domain:generic.domain,target:{...generic.target,title:base.title},domainConditions:generic.domainConditions,genericConditions:generic.conditions,triggers:generic.triggers,metadata:{rawQuery:text,inputMode:'text'}};
 }
