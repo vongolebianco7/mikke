@@ -19,3 +19,15 @@ test('hotel composer follows a stay-oriented direct-input flow',()=>{
   assert.match(css,/hotel-stay-editor/);
   assert.match(css,/hotel-primary-grid/);
 });
+
+test('shopping composer uses category-aware direct controls for representative domains',()=>{
+  assert.match(modes,/shopping-direct-editor/);
+  assert.match(modes,/shoppingPrimaryFields/);
+  for(const field of ['totalCapacity','size','width','weight','modelYear','mileage','repairHistory']){
+    assert.match(modes,new RegExp(`["']${field}["']`));
+  }
+  assert.match(modes,/data-shopping-field/);
+  assert.match(modes,/shopping-advanced/);
+  assert.match(css,/shopping-direct-editor/);
+  assert.match(css,/shopping-primary-grid/);
+});
