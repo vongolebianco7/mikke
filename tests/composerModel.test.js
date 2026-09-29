@@ -27,7 +27,7 @@ test('hotel composer exposes stay room and policy conditions without dumping adv
   assert.equal(model.domain,'hotel');
   assert.ok(model.basic.some((x)=>x.id==='checkIn'));
   assert.ok(model.common.some((x)=>x.id==='maxWalkingMinutes'));
-  assert.ok(model.detailed.some((x)=>x.id==='freeCancellation'));
+  assert.ok(model.common.some((x)=>x.id==='freeCancellation'));
   assert.ok(model.basic.length<12);
 });
 
