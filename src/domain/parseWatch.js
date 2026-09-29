@@ -24,8 +24,12 @@ function legacySummary(text,type){
 
 export function parseWatchQuery(raw){
   const text=raw.trim(),type=inferType(text),base=legacySummary(text,type);
-  if(type==='flight'||type==='hotel'){
-    const parsed=type==='flight'?parseFlightWatch(text):parseHotelWatch(text);
+  if(type==='flight'){
+    const parsed=parseFlightWatch(text);
+    return{...base,...parsed,schemaVersion:4,target:{...parsed.target,title:base.title},metadata:{...parsed.metadata,inputMode:'text'}};
+  }
+  if(type==='hotel'){
+    const parsed=parseHotelWatch(text);
     return{...base,schemaVersion:3,domain:parsed.domain,target:{...parsed.target,title:base.title},domainConditions:parsed.domainConditions,triggers:parsed.triggers,metadata:{...parsed.metadata,inputMode:'text'}};
   }
   const generic=parseGenericConditionClauses(text);
