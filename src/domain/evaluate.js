@@ -1,5 +1,5 @@
 import { factsFromCandidate } from './candidateFacts.js';
-import { evaluateGenericConditions } from './conditionEngine.js';
+import { evaluateGenericConditions, evaluateDomainConditions } from './conditionEngine.js';
 
 function normalizeColor(value = '') {
   return value.replace('灰色', 'グレー').toLowerCase();
@@ -32,26 +32,33 @@ function checkKey(key, conditions, candidate) {
   }
 }
 
+function shapeEvaluation(result) {
+  const reasons = result.outcomes.map(({ condition, state }) => ({
+    key: condition.id || condition.fieldId || condition.attributeId,
+    ok: state === 'pass',
+    state,
+  }));
+  const nearMatch = !result.requiredMatch
+    && result.unknownRequired.length === 0
+    && result.failedRequired.length === 1
+    && result.score >= 60;
+  return {
+    requiredMatch: result.requiredMatch,
+    score: result.score,
+    reasons,
+    nearMatch,
+    failedRequired: result.failedRequired,
+    unknownRequired: result.unknownRequired,
+  };
+}
+
 export function evaluateCandidate(watch, candidate) {
+  const facts = factsFromCandidate(candidate);
+  if (Array.isArray(watch.domainConditions) && watch.domainConditions.length) {
+    return shapeEvaluation(evaluateDomainConditions(watch.domainConditions, facts));
+  }
   if (Array.isArray(watch.genericConditions) && watch.genericConditions.length) {
-    const generic = evaluateGenericConditions(watch.genericConditions, factsFromCandidate(candidate));
-    const reasons = generic.outcomes.map(({ condition, state }) => ({
-      key: condition.id || condition.attributeId,
-      ok: state === 'pass',
-      state,
-    }));
-    const nearMatch = !generic.requiredMatch
-      && generic.unknownRequired.length === 0
-      && generic.failedRequired.length === 1
-      && generic.score >= 60;
-    return {
-      requiredMatch: generic.requiredMatch,
-      score: generic.score,
-      reasons,
-      nearMatch,
-      failedRequired: generic.failedRequired,
-      unknownRequired: generic.unknownRequired,
-    };
+    return shapeEvaluation(evaluateGenericConditions(watch.genericConditions, facts));
   }
 
   const required = watch.requiredKeys || [];
@@ -96,49 +103,25 @@ export function deriveEvents(previous, current, evaluation, context = {}) {
   }
 
   if (evaluation.nearMatch && previous?.nearMatch !== true) {
-    events.push({
-      kind: 'near_match',
-      candidateId: current.candidateId,
-      failedRequired: [...(evaluation.failedRequired || [])],
-    });
+    events.push({ kind: 'near_match', candidateId: current.candidateId, failedRequired: [...(evaluation.failedRequired || [])] });
   }
 
   for (const trigger of triggerList(context)) {
     if (!trigger?.type) continue;
-
     if (trigger.type === 'drop_percent' && numeric(current.price)) {
       const reference = trigger.reference === 'initial' ? 'initial' : 'previous';
       const referencePrice = reference === 'initial' ? context.initialPrice : previous?.price;
       if (numeric(referencePrice)) {
         const percent = percentDrop(referencePrice, current.price);
-        if (percent >= Number(trigger.percent || 0) && percent > 0) {
-          events.push({
-            kind: 'percent_drop',
-            candidateId: current.candidateId,
-            percent,
-            reference,
-            referencePrice,
-            currentPrice: current.price,
-          });
-        }
+        if (percent >= Number(trigger.percent || 0) && percent > 0) events.push({ kind:'percent_drop',candidateId:current.candidateId,percent,reference,referencePrice,currentPrice:current.price });
       }
     }
-
-    if (trigger.type === 'below_initial' && numeric(context.initialPrice) && numeric(current.price) && current.price < context.initialPrice) {
-      events.push({ kind: 'initial_price_drop', candidateId: current.candidateId, referencePrice: context.initialPrice, currentPrice: current.price });
-    }
-
+    if (trigger.type === 'below_initial' && numeric(context.initialPrice) && numeric(current.price) && current.price < context.initialPrice) events.push({ kind:'initial_price_drop',candidateId:current.candidateId,referencePrice:context.initialPrice,currentPrice:current.price });
     if (trigger.type === 'below_absolute' && numeric(trigger.value) && numeric(current.price)) {
       const wasAbove = !numeric(previous?.price) || previous.price > trigger.value;
-      if (current.price <= trigger.value && wasAbove) {
-        events.push({ kind: 'target_price_reached', candidateId: current.candidateId, targetPrice: trigger.value, currentPrice: current.price });
-      }
+      if (current.price <= trigger.value && wasAbove) events.push({ kind:'target_price_reached',candidateId:current.candidateId,targetPrice:trigger.value,currentPrice:current.price });
     }
-
-    if (trigger.type === 'new_watch_low' && numeric(context.observedLow) && numeric(current.price) && current.price < context.observedLow) {
-      events.push({ kind: 'watch_low', candidateId: current.candidateId, previousLow: context.observedLow, currentPrice: current.price });
-    }
+    if (trigger.type === 'new_watch_low' && numeric(context.observedLow) && numeric(current.price) && current.price < context.observedLow) events.push({ kind:'watch_low',candidateId:current.candidateId,previousLow:context.observedLow,currentPrice:current.price });
   }
-
   return events;
 }
