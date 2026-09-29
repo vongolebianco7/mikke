@@ -1,10 +1,12 @@
+import { parseGenericConditionClauses } from './parseGenericCondition.js';
+
 const COLOR_WORDS = ['グレー', '灰色', '黒', 'ブラック', '白', 'ホワイト', 'ベージュ', 'ネイビー', '青', 'ブルー', '赤', 'レッド'];
 
 function parsePrice(raw) {
   const normalized = raw.replace(/,/g, '');
   const man = normalized.match(/(\d+(?:\.\d+)?)\s*万円(?:以下|未満|切ったら|まで|になったら)?/);
   if (man) return Math.round(Number(man[1]) * 10000);
-  const yen = normalized.match(/(\d{4,7})\s*円?(?:以下|未満|切ったら|まで|になったら)/);
+  const yen = normalized.match(/(\d{3,8})\s*円?(?:以下|未満|切ったら|まで|になったら)/);
   return yen ? Number(yen[1]) : undefined;
 }
 
@@ -75,7 +77,7 @@ export function parseWatchQuery(raw) {
     if (size) conditions.size = size;
     const colors = COLOR_WORDS.filter((color) => text.includes(color));
     if (colors.length) conditions.colors = [...new Set(colors.map((color) => color === '灰色' ? 'グレー' : color))];
-    if (/(中古不可|中古は嫌|中古除外|新品のみ)/.test(text)) conditions.excludeUsed = true;
+    if (/(中古不可|中古は嫌|中古除外|新品のみ|新品)/.test(text)) conditions.excludeUsed = true;
     if (/(展示品.*OK|展示品.*可)/.test(text)) conditions.allowDisplay = true;
   }
 
@@ -97,7 +99,7 @@ export function parseWatchQuery(raw) {
 
   const requiredKeys = [];
   const preferredKeys = [];
-  const maxPriceRequired = maxPrice !== undefined && !/(なったら|教えて|通知)/.test(text);
+  const maxPriceRequired = maxPrice !== undefined && !/(なったら|教えて|通知|送料込み|送料込)/.test(text);
   if (maxPrice !== undefined && maxPriceRequired) requiredKeys.push('maxPrice');
   if (conditions.size) {
     if (includesPreferredLanguage(text, conditions.size)) preferredKeys.push('size');
@@ -106,6 +108,7 @@ export function parseWatchQuery(raw) {
   if (conditions.origin) requiredKeys.push('origin');
   if (conditions.destination) requiredKeys.push('destination');
   if (conditions.directOnly) requiredKeys.push('directOnly');
+  if (conditions.excludeUsed) requiredKeys.push('excludeUsed');
   if (conditions.colors) {
     const colorToken = conditions.colors[0];
     if (includesRequiredLanguage(text, colorToken)) requiredKeys.push('colors');
@@ -120,5 +123,16 @@ export function parseWatchQuery(raw) {
   conditions.priceTriggers = parsePriceTriggers(text, maxPrice, maxPriceRequired);
   conditions.stateTriggers = parseStateTriggers(text);
 
-  return { type, title: extractTitle(text, type), rawQuery: text, conditions, requiredKeys, preferredKeys };
+  const base = { type, title: extractTitle(text, type), rawQuery: text, conditions, requiredKeys, preferredKeys };
+  if (type !== 'shopping') return base;
+
+  const generic = parseGenericConditionClauses(text);
+  return {
+    ...base,
+    schemaVersion: 2,
+    target: { ...generic.target, title: base.title },
+    genericConditions: generic.conditions,
+    triggers: generic.triggers,
+    metadata: { rawQuery: text, inputMode: 'text' },
+  };
 }
