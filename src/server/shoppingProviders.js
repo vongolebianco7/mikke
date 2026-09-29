@@ -73,11 +73,13 @@ export function normalizeRakutenItem(item) {
     provider: 'rakuten',
     supportedFields: ['price', 'availability', 'title'],
     inferredAttributes: ['size', 'color', 'condition'],
+    unknownAttributes: ['condition'],
   });
 }
 
 export function normalizeYahooItem(item) {
-  const condition = item.condition || 'new';
+  const explicitCondition = item.condition !== undefined && item.condition !== null && item.condition !== '';
+  const condition = explicitCondition ? item.condition : 'new';
   const available = item.inStock === true ? true : item.inStock === false ? false : undefined;
   const candidate = {
     id: `yahoo:${item.code}`,
@@ -94,7 +96,8 @@ export function normalizeYahooItem(item) {
   return attachProviderEvidence(candidate, {
     provider: 'yahoo',
     supportedFields: ['price', 'availability', 'title'],
-    inferredAttributes: ['size', 'color', 'condition'],
+    inferredAttributes: ['size', 'color', ...(explicitCondition ? [] : ['condition'])],
+    unknownAttributes: explicitCondition ? [] : ['condition'],
   });
 }
 
