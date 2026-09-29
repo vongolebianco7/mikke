@@ -47,6 +47,11 @@ test('v4 flight confirmation renders Travel Intent separately from filters and n
   assert.match(index, /flightWatchUi\.js/);
 });
 
+test('v4 flight confirmation hides the superseded legacy condition groups', () => {
+  assert.match(flightUi, /data-flight-v4-legacy-groups/);
+  assert.match(modeCss, /\[data-flight-v4-legacy-groups="true"\]\s*\{[^}]*display\s*:\s*none/);
+});
+
 test('subcategory conditions can resolve labels even from generic result rendering', () => {
   assert.equal(getDomainField('appliance', 'totalCapacity')?.label, '総容量');
   assert.equal(getDomainField('appliance', 'washCapacity')?.label, '洗濯容量');
