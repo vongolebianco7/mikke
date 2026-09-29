@@ -64,6 +64,14 @@ test('flight and hotel composer are driven by domain schema groups instead of sh
   assert.doesNotMatch(modes, /legacyBuilderOptions/);
 });
 
+test('flight composer keeps one structured Travel Intent draft across mode switches', () => {
+  assert.match(modes, /flightTravelDraft/);
+  assert.match(modes, /applyFlightTravelIntentEdit/);
+  assert.match(modes, /set_input_mode/);
+  const modeSwitch = modes.slice(modes.indexOf("const modeButton=event.target.closest('[data-composer-mode]')"), modes.indexOf("const easyTypeButton=event.target.closest('[data-easy-type]')"));
+  assert.doesNotMatch(modeSwitch, /hydrateFromRaw/);
+});
+
 test('travel composer keeps advanced conditions progressively disclosed on mobile', () => {
   assert.match(modes, /advanced-conditions/);
   assert.match(modeCss, /advanced-conditions/);
