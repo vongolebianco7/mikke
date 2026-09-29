@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildComposerModel, attributePresetPhrases, createComposerModel, applyComposerCondition } from '../src/domain/composerModel.js';
+import { buildComposerModel, attributePresetPhrases, createComposerModel, applyComposerCondition, applyFlightTravelIntentEdit } from '../src/domain/composerModel.js';
+import { createFlightTravelIntent } from '../src/domain/flightTravelIntent.js';
 
 test('refrigerator composer prioritizes category-specific conditions and common triggers',()=>{
   const model=buildComposerModel('冷蔵庫');
@@ -38,6 +39,36 @@ test('structured composer edits preserve existing conditions across mode changes
   assert.equal(updated.domainConditions[0].fieldId,'origin');
   assert.equal(updated.domainConditions[1].role,'preferred');
   assert.equal(watch.domainConditions.length,1);
+});
+
+test('Travel Intent composer adds multiple destinations without replacing existing alternatives',()=>{
+  const watch={schemaVersion:4,domain:'flight',travelIntent:createFlightTravelIntent(),flightFilters:[],triggers:[],metadata:{inputMode:'easy'}};
+  const one=applyFlightTravelIntentEdit(watch,{type:'add_place',set:'destination',place:{kind:'city',id:'HNL',label:'ホノルル'}});
+  const two=applyFlightTravelIntentEdit(one,{type:'add_place',set:'destination',place:{kind:'city',id:'SYD',label:'シドニー'}});
+  assert.equal(two.travelIntent.destinationSet.mode,'any_of');
+  assert.deepEqual(two.travelIntent.destinationSet.places.map((p)=>p.id),['HNL','SYD']);
+  assert.equal(watch.travelIntent.destinationSet.places.length,0);
+});
+
+test('Travel Intent composer adds and removes date alternatives non-destructively',()=>{
+  const watch={schemaVersion:4,domain:'flight',travelIntent:createFlightTravelIntent(),flightFilters:[],triggers:[],metadata:{inputMode:'builder'}};
+  const a={kind:'exact',outboundDate:'2027-01-10',returnDate:'2027-01-14'};
+  const b={kind:'month',year:2027,month:2,stayLength:{minNights:5,maxNights:7}};
+  const withA=applyFlightTravelIntentEdit(watch,{type:'add_date_option',option:a});
+  const withBoth=applyFlightTravelIntentEdit(withA,{type:'add_date_option',option:b});
+  assert.equal(withBoth.travelIntent.dateSet.mode,'any_of');
+  assert.equal(withBoth.travelIntent.dateSet.options.length,2);
+  const afterRemove=applyFlightTravelIntentEdit(withBoth,{type:'remove_date_option',index:0});
+  assert.deepEqual(afterRemove.travelIntent.dateSet.options,[b]);
+  assert.equal(withBoth.travelIntent.dateSet.options.length,2);
+});
+
+test('Travel Intent composer mode switch changes metadata only and preserves structured intent',()=>{
+  const watch={schemaVersion:4,domain:'flight',travelIntent:{...createFlightTravelIntent(),destinationSet:{...createFlightTravelIntent().destinationSet,mode:'any_of',places:[{kind:'city',id:'HNL',label:'ホノルル'},{kind:'city',id:'SYD',label:'シドニー'}]}},flightFilters:[],triggers:[],metadata:{inputMode:'easy'}};
+  const switched=applyFlightTravelIntentEdit(watch,{type:'set_input_mode',mode:'text'});
+  assert.equal(switched.metadata.inputMode,'text');
+  assert.deepEqual(switched.travelIntent.destinationSet.places,watch.travelIntent.destinationSet.places);
+  assert.notEqual(switched.travelIntent,watch.travelIntent);
 });
 
 test('five phase-1 categories expose progressive groups without dumping the full registry',()=>{
