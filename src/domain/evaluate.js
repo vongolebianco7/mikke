@@ -47,6 +47,7 @@ function shapeEvaluation(result) {
     requiredMatch: result.requiredMatch,
     score: result.score,
     reasons,
+    outcomes: result.outcomes,
     nearMatch,
     failedRequired: result.failedRequired,
     unknownRequired: result.unknownRequired,
@@ -74,7 +75,7 @@ export function evaluateCandidate(watch, candidate) {
   const reasons = [...requiredResults, ...preferredResults].map(([key, ok]) => ({ key, ok }));
   const failedRequired = requiredResults.filter(([, ok]) => !ok).map(([key]) => key);
   const nearMatch = !requiredMatch && failedRequired.length === 1 && score >= 60;
-  return { requiredMatch, score, reasons, nearMatch, failedRequired, unknownRequired: [], unsupportedRequired: [] };
+  return { requiredMatch, score, reasons, outcomes: [], nearMatch, failedRequired, unknownRequired: [], unsupportedRequired: [] };
 }
 
 function numeric(value) {
