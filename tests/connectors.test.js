@@ -23,6 +23,19 @@ test('v3 product domains use the approved shopping connector path', async () => 
   }
 });
 
+test('official product candidates mark unevaluable v3 domain fields unsupported instead of pretending unknown data is a match', async () => {
+  const watch={
+    id:'w-material',schemaVersion:3,domain:'fashion',type:'shopping',title:'jacket',rawQuery:'ジャケット',
+    domainConditions:[{fieldId:'material',operator:'contains_text',value:'綿',role:'required',evidencePolicy:'known_required'}],triggers:[],
+  };
+  const fetchImpl=async()=>({ok:true,json:async()=>({items:[{id:'p1',source:'test',title:'ジャケット',price:5000,available:true,attributes:{}}],providers:[{name:'test',status:'ok'}]})});
+  const result=await runWatchCheck(watch,{}, {fetchImpl});
+  const candidate=result.candidates[0];
+  assert.equal(candidate.evaluation.requiredMatch,false);
+  assert.deepEqual(candidate.evaluation.unsupportedRequired,['material']);
+  assert.equal(candidate.facts.material.state,'unsupported');
+});
+
 test('flight and hotel v3 Watches stay connector_pending and make zero provider calls', async () => {
   for (const domain of ['flight','hotel']) {
     let calls=0;
