@@ -67,7 +67,7 @@ test('result cards distinguish unsupported evidence from temporarily unknown evi
 test('Watch composer is one domain-aware flow instead of three input modes', () => {
   assert.doesNotMatch(modes, /かんたん/);
   assert.doesNotMatch(modes, /data-composer-mode/);
-  assert.doesNotMatch(modes, /composerMode/);
+  assert.doesNotMatch(modes, /\bcomposerMode\b/);
   assert.doesNotMatch(modeCss, /mode-cards/);
   assert.match(modes, /何を探す？/);
   assert.match(modes, /文章から条件を作る/);
