@@ -29,17 +29,41 @@ test('coupon eligibility never defaults to eligible',()=>{
   assert.equal(candidate.facts.coupon_eligibility.state,'unknown');
 });
 
-test('Rakuten normalization does not fabricate shipping coupon release or availability',()=>{
+test('empty inferred attribute is unknown rather than evidence that the attribute is absent',()=>{
+  const candidate=attachProviderEvidence({attributes:{sizes:[],colors:[]}},{provider:'x',inferredAttributes:['size','color']});
+  assert.equal(candidate.facts.size.state,'unknown');
+  assert.equal(candidate.facts.color.state,'unknown');
+  assert.equal(candidate.facts.size.meta.confidence,'inferred');
+});
+
+test('explicitly uncertain attributes stay unknown even when a legacy display fallback exists',()=>{
+  const candidate=attachProviderEvidence({attributes:{condition:'new'}},{provider:'x',inferredAttributes:['condition'],unknownAttributes:['condition']});
+  assert.equal(candidate.facts.condition.state,'unknown');
+  assert.equal(candidate.facts.condition.meta.confidence,'inferred');
+});
+
+test('Rakuten normalization does not fabricate shipping coupon release availability or condition evidence',()=>{
   const item=normalizeRakutenItem({itemCode:'r1',itemName:'商品',itemPrice:1000,itemUrl:'https://example.com/r1'});
   assert.equal(item.available,undefined);
   assert.equal(item.facts.shipping_fee.state,'unsupported');
   assert.equal(item.facts.coupon_available.state,'unsupported');
   assert.equal(item.facts.release_status.state,'unsupported');
+  assert.equal(item.facts.condition.state,'unknown');
+  assert.equal(item.facts.size.state,'unknown');
+  assert.equal(item.facts.color.state,'unknown');
 });
 
-test('Yahoo normalization does not turn missing stock into false',()=>{
+test('Yahoo normalization does not turn missing stock or condition into confirmed evidence',()=>{
   const item=normalizeYahooItem({code:'y1',name:'商品',price:1000,url:'https://example.com/y1'});
   assert.equal(item.available,undefined);
   assert.equal(item.facts.availability.state,'unknown');
   assert.equal(item.facts.coupon_eligibility.state,'unsupported');
+  assert.equal(item.facts.condition.state,'unknown');
+});
+
+test('Yahoo explicit condition remains provider-known evidence',()=>{
+  const item=normalizeYahooItem({code:'y2',name:'商品',price:1000,url:'https://example.com/y2',condition:'new'});
+  assert.equal(item.facts.condition.state,'known');
+  assert.equal(item.facts.condition.value,'new');
+  assert.equal(item.facts.condition.meta.confidence,'provider');
 });
