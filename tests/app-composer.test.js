@@ -30,3 +30,19 @@ test('Watch composer offers three distinct input modes before showing free text'
   assert.match(modeCss, /composer-mode/);
   assert.match(modeCss, /composer-awaiting-mode>textarea/);
 });
+
+test('flight and hotel composer are driven by domain schema groups instead of shallow legacy option tables', () => {
+  assert.match(modes, /createComposerModel/);
+  assert.match(modes, /basic/);
+  assert.match(modes, /common/);
+  assert.match(modes, /detailed/);
+  assert.match(modes, /advanced/);
+  assert.doesNotMatch(modes, /legacyEasyOptions/);
+  assert.doesNotMatch(modes, /legacyBuilderOptions/);
+});
+
+test('travel composer keeps advanced conditions progressively disclosed on mobile', () => {
+  assert.match(modes, /advanced-conditions/);
+  assert.match(modeCss, /advanced-conditions/);
+  assert.match(modeCss, /condition-family/);
+});
