@@ -142,7 +142,14 @@ export function getDomainSchema(domainId){
 export function getDomainField(domainId,fieldId,subcategoryId){
   const schema=getDomainSchema(domainId);
   if(!schema)return null;
-  return [...schema.fields,...(subcategoryId?schema.subcategories?.[subcategoryId]||[]:[])].find((item)=>item.id===fieldId)||null;
+  const direct=[...schema.fields,...(subcategoryId?schema.subcategories?.[subcategoryId]||[]:[])].find((item)=>item.id===fieldId);
+  if(direct)return direct;
+  if(subcategoryId)return null;
+  for(const fields of Object.values(schema.subcategories||{})){
+    const match=fields.find((item)=>item.id===fieldId);
+    if(match)return match;
+  }
+  return null;
 }
 
 export function listDomainFields(domainId,level,subcategoryId){
