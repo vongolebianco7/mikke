@@ -1,3 +1,5 @@
+import { attachProviderEvidence } from '../domain/providerEvidence.js';
+
 const RAKUTEN_ENDPOINT = 'https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701';
 const YAHOO_ENDPOINT = 'https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch';
 
@@ -54,34 +56,46 @@ export function buildYahooRequest(watch, credentials) {
 }
 
 export function normalizeRakutenItem(item) {
-  return {
+  const available = item.availability === 1 ? true : item.availability === 0 ? false : undefined;
+  const candidate = {
     id: `rakuten:${item.itemCode}`,
     source: '楽天市場',
     title: item.itemName,
     price: item.itemPrice,
     url: item.itemUrl,
-    available: item.availability === 1,
+    available,
     imageUrl: item.mediumImageUrls?.[0] || '',
     shopName: item.shopName || '',
     condition: 'new',
     attributes: inferShoppingAttributes(`${item.itemName || ''} ${item.itemCaption || ''}`, 'new'),
   };
+  return attachProviderEvidence(candidate, {
+    provider: 'rakuten',
+    supportedFields: ['price', 'availability', 'title'],
+    inferredAttributes: ['size', 'color', 'condition'],
+  });
 }
 
 export function normalizeYahooItem(item) {
   const condition = item.condition || 'new';
-  return {
+  const available = item.inStock === true ? true : item.inStock === false ? false : undefined;
+  const candidate = {
     id: `yahoo:${item.code}`,
     source: 'Yahoo!ショッピング',
     title: item.name,
     price: item.price,
     url: item.url,
-    available: Boolean(item.inStock),
+    available,
     imageUrl: item.image?.medium || '',
     shopName: item.seller?.name || '',
     condition,
     attributes: inferShoppingAttributes(`${item.name || ''} ${item.description || ''} ${item.headLine || ''}`, condition),
   };
+  return attachProviderEvidence(candidate, {
+    provider: 'yahoo',
+    supportedFields: ['price', 'availability', 'title'],
+    inferredAttributes: ['size', 'color', 'condition'],
+  });
 }
 
 async function fetchJson(fetchImpl, request) {
