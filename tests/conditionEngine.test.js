@@ -15,15 +15,16 @@ test('evaluates equality list boolean and text operators', () => {
   assert.equal(evaluateCondition({attributeId:'title',operator:'contains_text',value:'500L'},facts).state,'pass');
 });
 
-test('v3 fieldId conditions share the same tri-state semantics',()=>{
+test('v3 fieldId conditions preserve unknown and unsupported evidence separately',()=>{
   const facts={checkedBaggageIncluded:factUnknown(),parking:factUnsupported()};
   const result=evaluateDomainConditions([
     {id:'bag',fieldId:'checkedBaggageIncluded',operator:'is_true',value:true,role:'required',evidencePolicy:'known_required'},
-    {id:'parking',fieldId:'parking',operator:'is_true',value:true,role:'preferred',evidencePolicy:'allow_unknown'},
+    {id:'parking',fieldId:'parking',operator:'is_true',value:true,role:'required',evidencePolicy:'known_required'},
   ],facts);
   assert.equal(result.requiredMatch,false);
   assert.deepEqual(result.unknownRequired,['bag']);
-  assert.equal(result.preferredPassed,0);
+  assert.deepEqual(result.unsupportedRequired,['parking']);
+  assert.equal(result.outcomes.find((x)=>x.condition.id==='parking').state,'unsupported');
 });
 
 test('normalizes safe units for numeric comparisons', () => {
@@ -54,10 +55,10 @@ test('invalid dates ranges and incompatible units become unknown rather than gue
 
 test('unknown and unsupported required evidence never become confirmed matches', () => {
   const required=[{id:'shipping',attributeId:'shipping_fee',operator:'eq',value:0,unit:'JPY',role:'required'}];
-  for(const fact of [factUnknown({provider:'x'}),factUnsupported({provider:'x'})]){
-    const result=evaluateGenericConditions(required,{shipping_fee:fact});
-    assert.equal(result.requiredMatch,false);assert.deepEqual(result.unknownRequired,['shipping']);assert.equal(result.outcomes[0].state,'unknown');
-  }
+  const unknown=evaluateGenericConditions(required,{shipping_fee:factUnknown({provider:'x'})});
+  assert.equal(unknown.requiredMatch,false);assert.deepEqual(unknown.unknownRequired,['shipping']);assert.deepEqual(unknown.unsupportedRequired,[]);assert.equal(unknown.outcomes[0].state,'unknown');
+  const unsupported=evaluateGenericConditions(required,{shipping_fee:factUnsupported({provider:'x'})});
+  assert.equal(unsupported.requiredMatch,false);assert.deepEqual(unsupported.unknownRequired,[]);assert.deepEqual(unsupported.unsupportedRequired,['shipping']);assert.equal(unsupported.outcomes[0].state,'unsupported');
 });
 
 test('facts keep unsupported and unknown distinct',()=>{
