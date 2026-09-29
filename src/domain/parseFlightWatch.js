@@ -9,9 +9,12 @@ export function parseFlightWatch(raw=''){
   const text=String(raw).trim(), domainConditions=[],triggers=[],unparsedClauses=[];
   const add=(c)=>c&&domainConditions.push(c), notify=(t)=>t&&triggers.push(t);
   let routeMatched=false;
-  const route=text.match(/([^、,]+?)から([^、,]+?)(?=、|,|$)/);
-  if(route&&!/どこからでも/.test(route[1])){add(condition('origin','eq',route[1].replace(/航空券|フライト/g,'').trim()));add(condition('destination','eq',route[2].replace(/航空券|フライト/g,'').trim()));routeMatched=true;}
-  const anywhere=text.match(/どこからでも([^、,]+?)(?=、|,|$)/);if(anywhere){add(condition('destination','eq',anywhere[1].replace(/航空券|フライト/g,'').trim()));routeMatched=true;}
+  const anywhere=text.match(/どこからでも([^、,]+?)(?=、|,|$)/);
+  if(anywhere){add(condition('destination','eq',anywhere[1].replace(/航空券|フライト/g,'').trim()));routeMatched=true;}
+  if(!anywhere){
+    const route=text.match(/([^、,]+?)から([^、,]+?)(?=、|,|$)/);
+    if(route){add(condition('origin','eq',route[1].replace(/航空券|フライト/g,'').trim()));add(condition('destination','eq',route[2].replace(/航空券|フライト/g,'').trim()));routeMatched=true;}
+  }
   if(/羽田のみ/.test(text))add(condition('departureAirports','in',['HND']));
   if(/成田のみ/.test(text))add(condition('departureAirports','in',['NRT']));
   if(/成田除外/.test(text))add(condition('departureAirports','not_in',['NRT']));
