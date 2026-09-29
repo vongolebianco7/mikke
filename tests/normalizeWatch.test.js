@@ -36,6 +36,6 @@ test('loadWatches accepts mixed legacy through v4 records without dropping entri
   assert.deepEqual(watches.map((w)=>w.id),['v1','v2','v3']);
   assert.deepEqual(watches.map((w)=>w.schemaVersion),[4,3,3]);
   assert.deepEqual(watches.map((w)=>w.domain),['flight','appliance','hotel']);
-  assert.deepEqual(watches[0].travelIntent.originSet.places,['東京']);
-  assert.deepEqual(watches[0].travelIntent.destinationSet.places,['札幌']);
+  assert.deepEqual(watches[0].travelIntent.originSet.places.map((place)=>place.label),['東京']);
+  assert.deepEqual(watches[0].travelIntent.destinationSet.places.map((place)=>place.label),['札幌']);
 });
