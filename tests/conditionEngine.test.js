@@ -42,14 +42,14 @@ test('evaluates deterministic dates times durations and airline lists for v3 fie
   };
   assert.equal(evaluateCondition({fieldId:'checkIn',operator:'gte',value:'2026-10-20'},facts).state,'pass');
   assert.equal(evaluateCondition({fieldId:'departureTime',operator:'between',value:['08:00','12:00']},facts).state,'pass');
-  assert.equal(evaluateCondition({fieldId:'maxTotalDuration',operator:'lte',value:720,unit:'min'},facts).state,'pass');
+  assert.equal(evaluateCondition({fieldId:'maxTotalDuration',operator:'lte',value:12,unit:'hour'},facts).state,'pass');
   assert.equal(evaluateCondition({fieldId:'allowedAirlines',operator:'in',value:['ANA']},facts).state,'pass');
 });
 
 test('invalid dates ranges and incompatible units become unknown rather than guesses',()=>{
   assert.equal(evaluateCondition({fieldId:'checkIn',operator:'gte',value:'bad-date'},{checkIn:factKnown('2026-10-26')}).state,'unknown');
   assert.equal(evaluateCondition({fieldId:'departureTime',operator:'between',value:['xx','12:00']},{departureTime:factKnown('09:30')}).state,'unknown');
-  assert.equal(evaluateCondition({fieldId:'maxTotalDuration',operator:'lte',value:12,unit:'hour'},{maxTotalDuration:factKnown(650,{unit:'min'})}).state,'unknown');
+  assert.equal(evaluateCondition({fieldId:'maxTotalDuration',operator:'lte',value:12,unit:'kg'},{maxTotalDuration:factKnown(650,{unit:'min'})}).state,'unknown');
 });
 
 test('unknown and unsupported required evidence never become confirmed matches', () => {
