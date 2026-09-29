@@ -26,6 +26,13 @@ test('evaluates restock, free shipping, coupon, release and preorder transitions
     current({preorder_status:factKnown('open')}),previous({preorder_status:factKnown('closed')}),{}).kind,'preorder_open');
 });
 
+test('already-satisfied equality and threshold conditions do not notify again', () => {
+  assert.equal(evaluateTrigger({metric:'shipping_fee',operator:'eq',value:0,reference:'current'},
+    current({shipping_fee:factKnown(0)}),previous({shipping_fee:factKnown(0)}),{}),null);
+  assert.equal(evaluateTrigger({metric:'price',operator:'lte',value:10000,reference:'current'},
+    current({price:factKnown(9500)}),previous({price:factKnown(9800)}),{}),null);
+});
+
 test('missing current or reference evidence suppresses trigger events', () => {
   assert.equal(evaluateTrigger({metric:'shipping_fee',operator:'eq',value:0},current({shipping_fee:factUnknown()}),previous(),{}),null);
   assert.equal(evaluateTrigger({metric:'price',operator:'lt',reference:'previous_observation'},current(),{price:factUnknown()},{}),null);
