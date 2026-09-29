@@ -12,6 +12,8 @@ const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const modeCss = readFileSync(new URL('../composer-modes.css', import.meta.url), 'utf8');
 const evidenceCss = readFileSync(new URL('../result-evidence.css', import.meta.url), 'utf8');
 const evidenceModule = readFileSync(new URL('../src/domain/resultEvidence.js', import.meta.url), 'utf8');
+const parseWatch = readFileSync(new URL('../src/domain/parseWatch.js', import.meta.url), 'utf8');
+const draftBridge = readFileSync(new URL('../src/domain/composerDraftBridge.js', import.meta.url), 'utf8');
 
 test('Watch composer wires deterministic phrase suggestions into the UI', () => {
   assert.match(app, /suggestWatchPhrases/);
@@ -138,7 +140,9 @@ test('travel composer keeps advanced conditions progressively disclosed on mobil
   assert.match(modeCss, /condition-family/);
 });
 
-test('app submit prefers the structured composer draft over reparsing display text', () => {
-  assert.match(app, /form\._mikkeDraft/);
-  assert.match(app, /structuredClone\(form\._mikkeDraft\)/);
+test('submit parser can recover the live structured composer draft without reparsing display text', () => {
+  assert.match(modes, /form\._mikkeDraft/);
+  assert.match(parseWatch, /getComposerDraftOverride/);
+  assert.match(draftBridge, /form\?\._mikkeDraft/);
+  assert.match(draftBridge, /structuredClone\(form\._mikkeDraft\)/);
 });
