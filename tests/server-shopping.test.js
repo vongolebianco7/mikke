@@ -42,32 +42,42 @@ test('inferShoppingAttributes extracts multiple sizes and common colors without 
   assert.deepEqual(attrs.colors, ['グレー', 'ブラック']);
 });
 
-test('normalizeRakutenItem maps only documented response fields', () => {
+test('normalizeRakutenItem preserves legacy fields and attaches evidence metadata', () => {
   const item = normalizeRakutenItem({
     itemCode: 'shop:123', itemName: 'NB 996', itemPrice: 9800,
     itemUrl: 'https://item.example/r', availability: 1,
     mediumImageUrls: ['https://img.example/r.jpg'], shopName: 'Rakuten Shop',
   });
-  assert.deepEqual(item, {
+  const { facts, ...legacy } = item;
+  assert.deepEqual(legacy, {
     id: 'rakuten:shop:123', source: '楽天市場', title: 'NB 996', price: 9800,
     url: 'https://item.example/r', available: true,
     imageUrl: 'https://img.example/r.jpg', shopName: 'Rakuten Shop', condition: 'new',
     attributes: { sizes: [], colors: [], condition: 'new' },
   });
+  assert.equal(facts.price.state, 'known');
+  assert.equal(facts.availability.value, 'in_stock');
+  assert.equal(facts.shipping_fee.state, 'unsupported');
+  assert.equal(facts.coupon_available.state, 'unsupported');
 });
 
-test('normalizeYahooItem maps price, stock, seller and image fields', () => {
+test('normalizeYahooItem preserves legacy fields and attaches evidence metadata', () => {
   const item = normalizeYahooItem({
     code: 'store_123', name: 'NB 996', price: 9700, url: 'https://item.example/y',
     inStock: true, condition: 'new', image: { medium: 'https://img.example/y.jpg' },
     seller: { name: 'Yahoo Shop' },
   });
-  assert.deepEqual(item, {
+  const { facts, ...legacy } = item;
+  assert.deepEqual(legacy, {
     id: 'yahoo:store_123', source: 'Yahoo!ショッピング', title: 'NB 996', price: 9700,
     url: 'https://item.example/y', available: true,
     imageUrl: 'https://img.example/y.jpg', shopName: 'Yahoo Shop', condition: 'new',
     attributes: { sizes: [], colors: [], condition: 'new' },
   });
+  assert.equal(facts.price.state, 'known');
+  assert.equal(facts.availability.value, 'in_stock');
+  assert.equal(facts.shipping_fee.state, 'unsupported');
+  assert.equal(facts.coupon_eligibility.state, 'unsupported');
 });
 
 test('searchShoppingProviders skips unconfigured providers and does not retry failures', async () => {
