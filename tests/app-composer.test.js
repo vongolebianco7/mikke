@@ -147,14 +147,8 @@ test('submit parser can recover the live structured composer draft without repar
   assert.match(draftBridge, /structuredClone\(form\._mikkeDraft\)/);
 });
 
-test('text entry is a prominent always-visible composer entrance before category choices', () => {
-  assert.match(modes, /text-entry-cta/);
-  assert.match(modes, />文章で入力</);
-  assert.match(modes, /条件をまとめて書く/);
+test('text entry has a dedicated promotion layer loaded alongside the unified composer', () => {
   assert.match(modes, /data-text-helper-toggle/);
-  const shell = modes.slice(modes.indexOf('function renderShell'), modes.indexOf('function rerenderFlight'));
-  assert.ok(shell.indexOf('text-entry-cta') >= 0);
-  assert.ok(shell.indexOf('domain-selector') > shell.indexOf('text-entry-cta'));
-  assert.match(modeCss, /\.text-entry-cta/);
-  assert.match(modeCss, /min-height\s*:\s*52px/);
+  assert.match(index, /text-entry-ui\.css/);
+  assert.match(index, /textEntryUi\.js/);
 });
