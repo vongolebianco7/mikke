@@ -118,6 +118,15 @@ test('flight composer uses flight-search ordering and keeps dates and notificati
   assert.match(modeCss, /flight-primary-filters/);
 });
 
+test('flight primary choices directly edit structured trip cabin and filter state', () => {
+  assert.match(modes, /data-flight-trip-pattern/);
+  assert.match(modes, /data-flight-cabin-class/);
+  assert.match(modes, /applyFlightFilterEdit/);
+  assert.match(modes, /data-flight-filter-preset="nonstopOnly"/);
+  assert.match(modes, /data-flight-filter-preset="allowedAirlines"/);
+  assert.match(modeCss, /flight-choice-row/);
+});
+
 test('flight composer publishes the current structured draft on the form for save integration', () => {
   assert.match(modes, /_mikkeFlightDraft/);
   assert.match(modes, /publishFlightDraft/);
