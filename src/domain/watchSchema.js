@@ -37,6 +37,31 @@ export function normalizeGenericWatch(watch = {}) {
   };
 }
 
+export function normalizeDomainCondition(condition = {}) {
+  const role = CONDITION_ROLES.has(condition.role) ? condition.role : 'preferred';
+  return {
+    id: condition.id,
+    fieldId: condition.fieldId,
+    operator: condition.operator,
+    value: condition.value,
+    unit: condition.unit,
+    role,
+    evidencePolicy: condition.evidencePolicy || (role === 'required' ? 'known_required' : 'allow_unknown'),
+  };
+}
+
+export function normalizeDomainWatch(watch = {}) {
+  return {
+    ...watch,
+    schemaVersion: 3,
+    domain: watch.domain,
+    target: watch.target && typeof watch.target === 'object' && !Array.isArray(watch.target) ? { ...watch.target } : {},
+    domainConditions: Array.isArray(watch.domainConditions) ? watch.domainConditions.map(normalizeDomainCondition) : [],
+    triggers: Array.isArray(watch.triggers) ? watch.triggers.map(normalizeTrigger) : [],
+    metadata: watch.metadata && typeof watch.metadata === 'object' && !Array.isArray(watch.metadata) ? { ...watch.metadata } : {},
+  };
+}
+
 export function genericConditionFromLegacy(key, value, role = 'preferred') {
   if (value === undefined) return null;
   const common = { role: role === 'required' ? 'required' : 'preferred', source: 'common' };
@@ -52,26 +77,12 @@ export function genericConditionFromLegacy(key, value, role = 'preferred') {
 }
 
 export function genericTriggerFromLegacy(trigger = {}) {
-  if (trigger.type === 'below_absolute') return normalizeTrigger({
-    metric: 'price', operator: 'lte', value: trigger.value, unit: 'JPY', reference: 'current', scope: 'candidate',
-  });
-  if (trigger.type === 'below_previous') return normalizeTrigger({
-    metric: 'price', operator: 'lt', reference: 'previous_observation', scope: 'candidate',
-  });
-  if (trigger.type === 'below_initial') return normalizeTrigger({
-    metric: 'price', operator: 'lt', reference: 'initial_observation', scope: 'candidate',
-  });
-  if (trigger.type === 'drop_percent') return normalizeTrigger({
-    metric: 'discount_percent', operator: 'gte', value: trigger.percent, unit: '%', reference: trigger.reference === 'initial' ? 'initial_observation' : 'previous_observation', scope: 'candidate',
-  });
-  if (trigger.type === 'new_watch_low') return normalizeTrigger({
-    metric: 'price', operator: 'lt', reference: 'watch_low', scope: 'candidate',
-  });
-  if (trigger.type === 'restock') return normalizeTrigger({
-    metric: 'availability', operator: 'changed_to', value: 'in_stock', reference: 'previous_observation', scope: 'candidate',
-  });
-  if (trigger.type === 'new_result') return normalizeTrigger({
-    metric: 'listing_status', operator: 'changed_to', value: 'new', reference: 'previous_observation', scope: 'candidate',
-  });
+  if (trigger.type === 'below_absolute') return normalizeTrigger({metric:'price',operator:'lte',value:trigger.value,unit:'JPY',reference:'current',scope:'candidate'});
+  if (trigger.type === 'below_previous') return normalizeTrigger({metric:'price',operator:'lt',reference:'previous_observation',scope:'candidate'});
+  if (trigger.type === 'below_initial') return normalizeTrigger({metric:'price',operator:'lt',reference:'initial_observation',scope:'candidate'});
+  if (trigger.type === 'drop_percent') return normalizeTrigger({metric:'discount_percent',operator:'gte',value:trigger.percent,unit:'%',reference:trigger.reference === 'initial' ? 'initial_observation' : 'previous_observation',scope:'candidate'});
+  if (trigger.type === 'new_watch_low') return normalizeTrigger({metric:'price',operator:'lt',reference:'watch_low',scope:'candidate'});
+  if (trigger.type === 'restock') return normalizeTrigger({metric:'availability',operator:'changed_to',value:'in_stock',reference:'previous_observation',scope:'candidate'});
+  if (trigger.type === 'new_result') return normalizeTrigger({metric:'listing_status',operator:'changed_to',value:'new',reference:'previous_observation',scope:'candidate'});
   return null;
 }
