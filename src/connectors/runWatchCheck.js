@@ -6,6 +6,9 @@ import { groupProducts } from '../domain/groupProducts.js';
 import { searchSampleShopping } from './sampleShopping.js';
 import { searchOfficialShopping } from './officialShopping.js';
 
+const PRODUCT_DOMAINS=new Set(['fashion','appliance','furniture','food','used_car']);
+function isShoppingWatch(watch){return watch?.type==='shopping'||PRODUCT_DOMAINS.has(watch?.domain)}
+
 function splitHistoryEntry(entry) {
   if (!entry) return { previous: undefined, context: {} };
   if (entry.previous || entry.initialPrice !== undefined || entry.observedLow !== undefined) {
@@ -69,7 +72,7 @@ function appendCheaperProviderEvents(candidates, previousByCandidate, events) {
 }
 
 export async function runWatchCheck(watch, previousByCandidate = {}, options = {}) {
-  if (watch.type !== 'shopping') {
+  if (!isShoppingWatch(watch)) {
     return { status: 'connector_pending', candidates: [], events: [] };
   }
 
