@@ -137,3 +137,8 @@ test('travel composer keeps advanced conditions progressively disclosed on mobil
   assert.match(modeCss, /advanced-conditions/);
   assert.match(modeCss, /condition-family/);
 });
+
+test('app submit prefers the structured composer draft over reparsing display text', () => {
+  assert.match(app, /form\._mikkeDraft/);
+  assert.match(app, /structuredClone\(form\._mikkeDraft\)/);
+});
