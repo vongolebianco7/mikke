@@ -13,7 +13,10 @@ test('hotel composer follows a stay-oriented direct-input flow',()=>{
   for(const field of ['breakfastIncluded','freeCancellation']){
     assert.match(modes,new RegExp(`booleanHotelButton\\(["']${field}["']`));
   }
-  const order=['宿泊地','日程','人数・部屋','よく使う条件','その他の条件','いつ知らせる？'].map((label)=>modes.indexOf(label));
+  const start=modes.indexOf('function hotelStayEditor');
+  const end=modes.indexOf('function standardEditor',start);
+  const hotelSection=modes.slice(start,end);
+  const order=['宿泊地','日程','人数・部屋','よく使う条件','その他の条件','いつ知らせる？'].map((label)=>hotelSection.indexOf(label));
   assert.ok(order.every((n)=>n>=0));
   for(let i=1;i<order.length;i++)assert.ok(order[i]>order[i-1]);
   assert.match(css,/hotel-stay-editor/);
