@@ -7,8 +7,11 @@ const css=readFileSync(new URL('../composer-modes.css',import.meta.url),'utf8');
 
 test('hotel composer follows a stay-oriented direct-input flow',()=>{
   assert.match(modes,/hotel-stay-editor/);
-  for(const field of ['destination','checkIn','checkOut','rooms','adults','maxWalkingMinutes','breakfastIncluded','freeCancellation','rating']){
+  for(const field of ['destination','checkIn','checkOut','rooms','adults','maxWalkingMinutes','rating']){
     assert.match(modes,new RegExp(`data-hotel-field=["']${field}["']`));
+  }
+  for(const field of ['breakfastIncluded','freeCancellation']){
+    assert.match(modes,new RegExp(`booleanHotelButton\\(["']${field}["']`));
   }
   const order=['宿泊地','日程','人数・部屋','よく使う条件','その他の条件','いつ知らせる？'].map((label)=>modes.indexOf(label));
   assert.ok(order.every((n)=>n>=0));
