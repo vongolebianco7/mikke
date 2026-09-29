@@ -21,6 +21,14 @@ test('Watch composer visibly separates required preferred and notification condi
   assert.match(app, /data-role-toggle/);
 });
 
+test('v3 confirmation rendering resolves domain condition labels from the schema', () => {
+  assert.match(app, /getDomainField/);
+  assert.match(app, /domainConditions/);
+  assert.match(app, /fieldId/);
+  assert.match(app, /supportsRequired/);
+  assert.match(app, /supportsPreferred/);
+});
+
 test('Watch composer offers three distinct input modes before showing free text', () => {
   assert.match(modes, /かんたん/);
   assert.match(modes, /組み立て/);
