@@ -37,25 +37,21 @@ export function buildComposerModel(subject=''){
   const template=getCategoryTemplate(inferred.categoryId);
   const defaults=[...(template?.defaultAttributes||[])];
   const recommended=[...(template?.recommendedAttributes||[])];
-  const common=[...new Set(COMMON_IDS.filter((id)=>id==='price'||defaults.includes(id)))].map(item).filter(Boolean);
-  const category=[...new Set([...defaults,...recommended])]
-    .filter((id)=>id!=='price'&&!common.some((x)=>x.id===id))
-    .map(item).filter(Boolean).slice(0,10);
-
   const subcategoryExtras={
-    refrigerator:['total_capacity','freezer_capacity','installation_width','energy_consumption'],
+    refrigerator:['total_capacity','installation_width','freezer_capacity','energy_consumption'],
     shoes:['size','weight','material'],
     sofa:['seat_count','load_capacity','assembly_required'],
     coffee:['expiration_date','storage_method','allergens'],
     car:['fuel_type','drivetrain','warranty'],
   }[inferred.subcategoryId]||[];
-  for(const id of subcategoryExtras){
-    if(category.some((x)=>x.id===id)||common.some((x)=>x.id===id))continue;
-    const entry=item(id);if(entry&&category.length<11)category.push(entry);
-  }
+  const common=[...new Set(COMMON_IDS.filter((id)=>id==='price'||defaults.includes(id)))].map(item).filter(Boolean);
+  const commonIds=new Set(common.map((entry)=>entry.id));
+  const categoryIds=[...new Set([...defaults,...subcategoryExtras,...recommended])]
+    .filter((id)=>id!=='price'&&!commonIds.has(id));
+  const category=categoryIds.map(item).filter(Boolean).slice(0,10);
 
   const shown=new Set([...common,...category].map((x)=>x.id));
-  const advanced=[...(template?.advancedAttributes||[]),'seller','release_year','warranty','material']
+  const advanced=[...categoryIds.slice(10),...(template?.advancedAttributes||[]),'seller','release_year','warranty','material']
     .filter((id,index,array)=>array.indexOf(id)===index&&!shown.has(id))
     .map(item).filter(Boolean);
   if(!advanced.length)advanced.push({id:'custom',label:'その他の属性'});
