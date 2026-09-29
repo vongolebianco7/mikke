@@ -5,6 +5,9 @@ import { getDomainField } from '../src/domain/domainSchemas.js';
 
 const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const modes = readFileSync(new URL('../src/composerModes.js', import.meta.url), 'utf8');
+const flightUi = readFileSync(new URL('../src/flightWatchUi.js', import.meta.url), 'utf8');
+const flightDisplay = readFileSync(new URL('../src/domain/flightDisplay.js', import.meta.url), 'utf8');
+const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const modeCss = readFileSync(new URL('../composer-modes.css', import.meta.url), 'utf8');
 const evidenceCss = readFileSync(new URL('../result-evidence.css', import.meta.url), 'utf8');
@@ -33,12 +36,15 @@ test('v3 confirmation rendering resolves domain condition labels from the schema
 });
 
 test('v4 flight confirmation renders Travel Intent separately from filters and notifications', () => {
-  assert.match(app, /flightIntentChips/);
-  assert.match(app, /flightIntentGroupsHtml/);
-  assert.match(app, /travelIntent/);
-  assert.match(app, /flightFilters/);
-  assert.match(app, /旅程/);
-  assert.match(app, /日付候補/);
+  assert.match(flightDisplay, /flightIntentChips/);
+  assert.match(flightDisplay, /flightIntentGroupsHtml/);
+  assert.match(flightDisplay, /travelIntent/);
+  assert.match(flightDisplay, /flightFilters/);
+  assert.match(flightDisplay, /旅程/);
+  assert.match(flightDisplay, /日付候補/);
+  assert.match(flightUi, /data-flight-v4-summary/);
+  assert.match(flightUi, /loadWatches/);
+  assert.match(index, /flightWatchUi\.js/);
 });
 
 test('subcategory conditions can resolve labels even from generic result rendering', () => {
