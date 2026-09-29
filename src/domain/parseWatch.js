@@ -1,6 +1,7 @@
 import { parseGenericConditionClauses } from './parseGenericCondition.js';
 import { parseFlightWatch } from './parseFlightWatch.js';
 import { parseHotelWatch } from './parseHotelWatch.js';
+import { getComposerDraftOverride } from './composerDraftBridge.js';
 
 const COLOR_WORDS=['グレー','灰色','黒','ブラック','白','ホワイト','ベージュ','ネイビー','青','ブルー','赤','レッド'];
 function parsePrice(raw){const normalized=raw.replace(/,/g,'');const man=normalized.match(/(\d+(?:\.\d+)?)\s*万円(?:以下|未満|切ったら|まで|になったら)?/);if(man)return Math.round(Number(man[1])*10000);const yen=normalized.match(/(\d{3,8})\s*円?(?:以下|未満|切ったら|まで|になったら)/);return yen?Number(yen[1]):undefined}
@@ -23,7 +24,9 @@ function legacySummary(text,type){
 }
 
 export function parseWatchQuery(raw){
-  const text=raw.trim(),type=inferType(text),base=legacySummary(text,type);
+  const text=raw.trim(),override=getComposerDraftOverride(text);
+  if(override)return override;
+  const type=inferType(text),base=legacySummary(text,type);
   if(type==='flight'){
     const parsed=parseFlightWatch(text);
     return{...base,...parsed,schemaVersion:4,target:{...parsed.target,title:base.title},metadata:{...parsed.metadata,inputMode:'text'}};
