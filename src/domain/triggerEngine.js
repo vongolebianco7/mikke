@@ -85,7 +85,8 @@ export function evaluateTrigger(trigger={},currentFacts={},previousFacts={},hist
     trigger.operator==='lte'?previousValue>target:
     trigger.operator==='lt'?previousValue>=target:
     trigger.operator==='gte'?previousValue<target:
-    trigger.operator==='gt'?previousValue<=target:true
+    trigger.operator==='gt'?previousValue<=target:
+    trigger.operator==='eq'?previousValue!==target:false
   );
   const pass=trigger.operator==='lte'?value<=target:
     trigger.operator==='lt'?value<target:
