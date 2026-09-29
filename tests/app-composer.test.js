@@ -72,6 +72,24 @@ test('flight composer keeps one structured Travel Intent draft across mode switc
   assert.doesNotMatch(modeSwitch, /hydrateFromRaw/);
 });
 
+test('flight composer uses flight-search ordering and keeps dates and notifications distinct', () => {
+  assert.match(modes, /flight-intent-panel/);
+  assert.match(modes, /出発地/);
+  assert.match(modes, /行き先/);
+  assert.match(modes, /いつ行く？/);
+  assert.match(modes, /日付指定/);
+  assert.match(modes, /月指定/);
+  assert.match(modes, /期間指定/);
+  assert.match(modes, /いつでも/);
+  assert.match(modes, /data-flight-destination-remove/);
+  assert.match(modes, /data-flight-date-remove/);
+  assert.match(modes, /よく使う条件/);
+  assert.match(modes, /通知/);
+  assert.match(modeCss, /flight-intent-panel/);
+  assert.match(modeCss, /flight-date-modes/);
+  assert.match(modeCss, /flight-primary-filters/);
+});
+
 test('travel composer keeps advanced conditions progressively disclosed on mobile', () => {
   assert.match(modes, /advanced-conditions/);
   assert.match(modeCss, /advanced-conditions/);
