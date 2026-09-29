@@ -23,10 +23,15 @@ function candidateValue(candidate, field) {
   return mapping[field];
 }
 
+function missingInference(value) {
+  return value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+}
+
 export function attachProviderEvidence(candidate = {}, options = {}) {
   const provider = options.provider || candidate.provider || candidate.source || 'unknown';
   const supported = new Set(options.supportedFields || []);
   const inferred = new Set(options.inferredAttributes || []);
+  const unknownAttributes = new Set(options.unknownAttributes || []);
   const facts = { ...(candidate.facts && typeof candidate.facts === 'object' ? candidate.facts : {}) };
 
   for (const field of TRACKED_FIELDS) {
@@ -45,9 +50,10 @@ export function attachProviderEvidence(candidate = {}, options = {}) {
   for (const [key, value] of Object.entries(attrs)) {
     const attributeId = key === 'colors' ? 'color' : key === 'sizes' ? 'size' : key;
     if (facts[attributeId]) continue;
-    facts[attributeId] = value === undefined || value === null
-      ? factUnknown({ provider, confidence: inferred.has(attributeId) ? 'inferred' : 'provider' })
-      : factKnown(value, { provider, confidence: inferred.has(attributeId) ? 'inferred' : 'provider' });
+    const confidence = inferred.has(attributeId) ? 'inferred' : 'provider';
+    facts[attributeId] = unknownAttributes.has(attributeId) || (inferred.has(attributeId) && missingInference(value))
+      ? factUnknown({ provider, confidence })
+      : factKnown(value, { provider, confidence });
   }
 
   return { ...candidate, facts };
