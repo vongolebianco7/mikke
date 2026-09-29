@@ -1,3 +1,5 @@
+import { buildComposerModel, attributePresetPhrases } from './domain/composerModel.js';
+
 const MODE_KEY = 'mikke.composer.mode.v1';
 let composerMode = localStorage.getItem(MODE_KEY) || '';
 let easyType = 'shopping';
@@ -6,39 +8,31 @@ let easyPhrases = [];
 let builderType = 'shopping';
 let builderSubject = '';
 let builderPhrases = [];
-let builderCategory = 'price';
+let builderGroup = 'common';
+let builderAttribute = 'price';
 
 const labels = {
-  shopping: { name: '商品', placeholder: '例：New Balance 996' },
+  shopping: { name: '商品', placeholder: '例：冷蔵庫、スニーカー、ソファ' },
   flight: { name: '航空券', placeholder: '例：東京からホノルル' },
   hotel: { name: 'ホテル', placeholder: '例：軽井沢' },
 };
 
-const easyOptions = {
-  shopping: ['1万円以下になったら', '今より安くなったら', '10%以上値下がりしたら', '24.5cm', 'グレー', '新品のみ', '在庫復活したら'],
+const legacyEasyOptions = {
   flight: ['直行便', '往復10万円以下', '今より安くなったら', '10%以上値下がりしたら'],
   hotel: ['2万円以下', '今より安くなったら', '10%以上値下がりしたら'],
 };
-
-const builderOptions = {
-  price: ['1万円以下になったら', '今より安くなったら', '10%以上値下がりしたら', '登録後最安値になったら'],
-  size: ['23.5cm', '24.0cm', '24.5cm', '25.0cm', '26.0cm'],
-  color: ['グレー', 'ブラック', 'ホワイト', 'ネイビー'],
-  state: ['新品のみ', '中古除外', '展示品OK'],
-  notify: ['在庫復活したら', '新しい候補が見つかったら'],
+const legacyBuilderOptions = {
+  flight: { price:['往復10万円以下','今より安くなったら','10%以上値下がりしたら'], notify:[] },
+  hotel: { price:['2万円以下','今より安くなったら','10%以上値下がりしたら'], notify:[] },
 };
 
-function textarea(form) {
-  return form.querySelector('#query');
-}
-
+function textarea(form) { return form.querySelector('#query'); }
 function commitRaw(form, raw) {
   const input = textarea(form);
   if (!input) return;
   input.value = raw;
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
-
 function buildRaw(type, subject, phrases) {
   const parts = [];
   const clean = subject.trim();
@@ -48,7 +42,13 @@ function buildRaw(type, subject, phrases) {
   parts.push(...phrases);
   return parts.filter(Boolean).join('、');
 }
-
+function hydrateFromRaw(raw) {
+  const parts = String(raw || '').split(/[、,]/).map((x) => x.trim()).filter(Boolean);
+  const subject = parts[0] || '';
+  const phrases = parts.slice(1).filter((x) => !['航空券','ホテル'].includes(x));
+  easySubject = subject; builderSubject = subject;
+  easyPhrases = [...phrases]; builderPhrases = [...phrases];
+}
 function typeButtons(selected, attr) {
   return Object.entries(labels).map(([key, item]) => `
     <button type="button" class="type-choice ${selected === key ? 'active' : ''}" ${attr}="${key}">
@@ -56,50 +56,97 @@ function typeButtons(selected, attr) {
     </button>`).join('');
 }
 
+function shoppingEasyOptions(subject) {
+  const model = buildComposerModel(subject);
+  const attrs = [...model.common, ...model.category].slice(0, 7);
+  const phrases = attrs.flatMap((item) => attributePresetPhrases(item.id).slice(0, 1));
+  const triggerPhrases = model.triggers.flatMap((item) => item.phrases.slice(0, 1)).slice(0, 4);
+  return [...new Set([...phrases, ...triggerPhrases])].filter(Boolean).slice(0, 10);
+}
+function easyOptionsFor(type, subject) {
+  return type === 'shopping' ? shoppingEasyOptions(subject) : legacyEasyOptions[type] || [];
+}
+function categoryName(model) {
+  return {fashion:'ファッション',appliances:'家電',furniture:'家具',food:'食品',used_car:'中古車'}[model.categoryId] || '商品';
+}
 function easyPanel(form) {
   const panel = form.querySelector('.composer-mode-panel');
   if (!panel) return;
+  const model = easyType === 'shopping' ? buildComposerModel(easySubject) : null;
+  const options = easyOptionsFor(easyType, easySubject);
   panel.innerHTML = `
     <div class="guided-flow">
       <div class="guided-step"><span>1</span><div><b>何を見つけておく？</b><small>まず種類を選びます</small></div></div>
       <div class="type-choice-grid">${typeButtons(easyType, 'data-easy-type')}</div>
-      <div class="guided-step"><span>2</span><div><b>${labels[easyType].name}を入力</b><small>名前や行き先だけでOK</small></div></div>
+      <div class="guided-step"><span>2</span><div><b>${labels[easyType].name}を入力</b><small>名前だけでOK。商品なら条件候補を自動で切り替えます</small></div></div>
       <input class="mode-input" id="easy-subject" value="${escapeHtml(easySubject)}" placeholder="${labels[easyType].placeholder}" />
-      <div class="guided-step"><span>3</span><div><b>条件を選ぶ</b><small>必要なものだけタップ</small></div></div>
-      <div class="quick-option-grid">${easyOptions[easyType].map((item) => `<button type="button" class="${easyPhrases.includes(item) ? 'selected' : ''}" data-easy-option="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join('')}</div>
+      ${model && easySubject.trim() ? `<div class="category-detected"><span>${escapeHtml(categoryName(model))}</span><small>向けの条件を表示中</small></div>` : ''}
+      <div class="guided-step"><span>3</span><div><b>${easyType === 'shopping' ? 'よく使う条件を選ぶ' : '条件を選ぶ'}</b><small>必要なものだけタップ。あとから組み立てモードで細かく調整できます</small></div></div>
+      <div class="quick-option-grid">${options.map((item) => `<button type="button" class="${easyPhrases.includes(item) ? 'selected' : ''}" data-easy-option="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join('') || '<span class="mode-empty">商品名を入れると候補が出ます</span>'}</div>
     </div>`;
 }
 
+function groupItems(model, group) {
+  if (group === 'common') return model.common;
+  if (group === 'category') return model.category;
+  if (group === 'advanced') return model.advanced;
+  return model.triggers;
+}
+function builderPhraseOptions(model) {
+  if (builderGroup === 'triggers') {
+    return model.triggers.find((item) => item.id === builderAttribute)?.phrases || [];
+  }
+  return attributePresetPhrases(builderAttribute);
+}
+function builderGroupHtml(model, group, title) {
+  const entries = groupItems(model, group);
+  return `<section class="condition-family ${group === 'advanced' ? 'advanced-family' : ''}"><div class="condition-family-head"><b>${title}</b><small>${group === 'common' ? 'まずここから' : group === 'category' ? `${categoryName(model)}でよく使います` : '必要なときだけ'}</small></div><div class="condition-family-chips">${entries.map((item) => `<button type="button" class="${builderGroup === group && builderAttribute === item.id ? 'active' : ''}" data-builder-attribute="${escapeHtml(item.id)}" data-builder-group="${group}">${escapeHtml(item.label)}</button>`).join('')}</div></section>`;
+}
 function builderPanel(form) {
   const panel = form.querySelector('.composer-mode-panel');
   if (!panel) return;
-  const categories = [
-    ['price', '価格'], ['size', 'サイズ'], ['color', '色'], ['state', '状態'], ['notify', '通知'],
-  ];
+  if (builderType !== 'shopping') {
+    const options = legacyBuilderOptions[builderType] || {};
+    panel.innerHTML = `<div class="builder-flow"><div class="type-choice-grid compact">${typeButtons(builderType, 'data-builder-type')}</div><label class="mode-field"><b>探すもの</b><input class="mode-input" id="builder-subject" value="${escapeHtml(builderSubject)}" placeholder="${labels[builderType].placeholder}" /></label><div class="builder-summary">${summaryHtml(builderPhrases)}</div><div class="builder-options">${Object.values(options).flat().map((item)=>optionButton(item)).join('')}</div></div>`;
+    return;
+  }
+  const model = buildComposerModel(builderSubject);
+  const entries = groupItems(model, builderGroup);
+  if (!entries.some((item) => item.id === builderAttribute)) builderAttribute = entries[0]?.id || 'price';
+  const phraseOptions = builderPhraseOptions(model);
   panel.innerHTML = `
     <div class="builder-flow">
       <div class="type-choice-grid compact">${typeButtons(builderType, 'data-builder-type')}</div>
       <label class="mode-field"><b>探すもの</b><input class="mode-input" id="builder-subject" value="${escapeHtml(builderSubject)}" placeholder="${labels[builderType].placeholder}" /></label>
-      <div class="builder-summary">${builderPhrases.length ? builderPhrases.map((item) => `<span>${escapeHtml(item)}</span>`).join('') : '<small>下から条件を足していきます</small>'}</div>
-      <div class="builder-categories">${categories.map(([key, label]) => `<button type="button" class="${builderCategory === key ? 'active' : ''}" data-builder-category="${key}">${label}</button>`).join('')}</div>
-      <div class="builder-options">${builderOptions[builderCategory].map((item) => `<button type="button" class="${builderPhrases.includes(item) ? 'selected' : ''}" data-builder-option="${escapeHtml(item)}">＋ ${escapeHtml(item)}</button>`).join('')}</div>
+      ${builderSubject.trim() ? `<div class="category-detected"><span>${escapeHtml(categoryName(model))}</span><small>条件テンプレート</small></div>` : ''}
+      <div class="builder-summary">${summaryHtml(builderPhrases)}</div>
+      ${builderGroupHtml(model,'common','よく使う条件')}
+      ${builderGroupHtml(model,'category','この商品でよく使う条件')}
+      <section class="condition-family"><div class="condition-family-head"><b>通知タイミング</b><small>いつ知らせるか</small></div><div class="condition-family-chips">${model.triggers.map((item) => `<button type="button" class="${builderGroup === 'triggers' && builderAttribute === item.id ? 'active' : ''}" data-builder-attribute="${escapeHtml(item.id)}" data-builder-group="triggers">${escapeHtml(item.label)}</button>`).join('')}</div></section>
+      <details class="advanced-conditions" ${builderGroup === 'advanced' ? 'open' : ''}><summary>その他の条件</summary>${builderGroupHtml(model,'advanced','細かく指定')}</details>
+      <div class="builder-option-title"><b>${escapeHtml(entries.find((item)=>item.id===builderAttribute)?.label || '')}</b><span>候補</span></div>
+      <div class="builder-options">${phraseOptions.map((item) => optionButton(item)).join('') || '<span class="mode-empty">自由入力でも指定できます</span>'}</div>
     </div>`;
 }
+function summaryHtml(phrases){return phrases.length ? phrases.map((item) => `<span>${escapeHtml(item)}</span>`).join('') : '<small>下から条件を足していきます</small>'}
+function optionButton(item){return `<button type="button" class="${builderPhrases.includes(item) ? 'selected' : ''}" data-builder-option="${escapeHtml(item)}">＋ ${escapeHtml(item)}</button>`}
 
 function textPanel(form) {
   const panel = form.querySelector('.composer-mode-panel');
   if (!panel) return;
-  panel.innerHTML = `<div class="text-mode-intro"><b>条件を文章でまとめて入力</b><small>例：New Balance 996、24.5cm、グレー、今より安くなったら</small></div>`;
+  const model = composerRawModel(textarea(form)?.value || '');
+  panel.innerHTML = `<div class="text-mode-intro"><b>条件を文章でまとめて入力</b><small>例：冷蔵庫、500L以上、幅70cm以下、白かグレー、15万円以下</small>${model ? `<span class="text-category">${escapeHtml(categoryName(model))}として条件を整理します</span>` : ''}</div>`;
   const assist = form.querySelector('.assist-label b');
   if (assist) assist.textContent = '入力内容から追加できる条件';
 }
+function composerRawModel(raw){return String(raw||'').trim()?buildComposerModel(raw):null}
 
 function applyMode(form) {
   form.classList.remove('composer-awaiting-mode', 'composer-mode-easy', 'composer-mode-builder', 'composer-mode-text');
   if (!composerMode) {
     form.classList.add('composer-awaiting-mode');
     const panel = form.querySelector('.composer-mode-panel');
-    if (panel) panel.innerHTML = '<p class="mode-prompt">使いやすい入力方法を選んでください。あとから切り替えられます。</p>';
+    if (panel) panel.innerHTML = '<p class="mode-prompt">使いやすい入力方法を選んでください。あとから切り替えても入力内容は残ります。</p>';
     return;
   }
   form.classList.add(`composer-mode-${composerMode}`);
@@ -113,18 +160,18 @@ function enhance(form) {
   form.dataset.modesEnhanced = 'true';
   const input = textarea(form);
   if (!input) return;
+  hydrateFromRaw(input.value);
 
   const picker = document.createElement('section');
   picker.className = 'composer-mode-picker';
   picker.innerHTML = `
-    <div class="mode-picker-head"><b>Watchの作り方</b><span>3つから選べます</span></div>
+    <div class="mode-picker-head"><b>Watchの作り方</b><span>いつでも切り替えOK</span></div>
     <div class="mode-cards">
       <button type="button" data-composer-mode="easy"><span class="mode-icon">①</span><b>かんたん</b><small>質問に答えるだけ</small></button>
-      <button type="button" data-composer-mode="builder"><span class="mode-icon">＋</span><b>組み立て</b><small>条件を選んで追加</small></button>
+      <button type="button" data-composer-mode="builder"><span class="mode-icon">＋</span><b>組み立て</b><small>条件を細かく選ぶ</small></button>
       <button type="button" data-composer-mode="text"><span class="mode-icon">✎</span><b>文章で入力</b><small>まとめて一気に</small></button>
     </div>`;
   form.insertBefore(picker, input);
-
   const panel = document.createElement('div');
   panel.className = 'composer-mode-panel';
   form.insertBefore(panel, input);
@@ -132,76 +179,33 @@ function enhance(form) {
   form.addEventListener('click', (event) => {
     const modeButton = event.target.closest('[data-composer-mode]');
     if (modeButton) {
+      hydrateFromRaw(textarea(form)?.value || '');
       composerMode = modeButton.dataset.composerMode;
       localStorage.setItem(MODE_KEY, composerMode);
       form.querySelectorAll('[data-composer-mode]').forEach((button) => button.classList.toggle('active', button.dataset.composerMode === composerMode));
-      applyMode(form);
-      return;
+      applyMode(form); return;
     }
-
     const easyTypeButton = event.target.closest('[data-easy-type]');
-    if (easyTypeButton) {
-      easyType = easyTypeButton.dataset.easyType;
-      easyPhrases = [];
-      commitRaw(form, buildRaw(easyType, easySubject, easyPhrases));
-      easyPanel(form);
-      return;
-    }
+    if (easyTypeButton) { easyType=easyTypeButton.dataset.easyType; easyPhrases=[]; commitRaw(form,buildRaw(easyType,easySubject,easyPhrases)); easyPanel(form); return; }
     const easyOption = event.target.closest('[data-easy-option]');
-    if (easyOption) {
-      const item = easyOption.dataset.easyOption;
-      easyPhrases = easyPhrases.includes(item) ? easyPhrases.filter((value) => value !== item) : [...easyPhrases, item];
-      commitRaw(form, buildRaw(easyType, easySubject, easyPhrases));
-      easyPanel(form);
-      return;
-    }
-
+    if (easyOption) { const item=easyOption.dataset.easyOption; easyPhrases=easyPhrases.includes(item)?easyPhrases.filter((v)=>v!==item):[...easyPhrases,item]; commitRaw(form,buildRaw(easyType,easySubject,easyPhrases)); easyPanel(form); return; }
     const builderTypeButton = event.target.closest('[data-builder-type]');
-    if (builderTypeButton) {
-      builderType = builderTypeButton.dataset.builderType;
-      builderPhrases = [];
-      commitRaw(form, buildRaw(builderType, builderSubject, builderPhrases));
-      builderPanel(form);
-      return;
-    }
-    const category = event.target.closest('[data-builder-category]');
-    if (category) {
-      builderCategory = category.dataset.builderCategory;
-      builderPanel(form);
-      return;
-    }
+    if (builderTypeButton) { builderType=builderTypeButton.dataset.builderType; builderPhrases=[]; builderGroup='common'; builderAttribute='price'; commitRaw(form,buildRaw(builderType,builderSubject,builderPhrases)); builderPanel(form); return; }
+    const attr = event.target.closest('[data-builder-attribute]');
+    if (attr) { builderGroup=attr.dataset.builderGroup||'common'; builderAttribute=attr.dataset.builderAttribute; builderPanel(form); return; }
     const builderOption = event.target.closest('[data-builder-option]');
-    if (builderOption) {
-      const item = builderOption.dataset.builderOption;
-      builderPhrases = builderPhrases.includes(item) ? builderPhrases.filter((value) => value !== item) : [...builderPhrases, item];
-      commitRaw(form, buildRaw(builderType, builderSubject, builderPhrases));
-      builderPanel(form);
-    }
+    if (builderOption) { const item=builderOption.dataset.builderOption; builderPhrases=builderPhrases.includes(item)?builderPhrases.filter((v)=>v!==item):[...builderPhrases,item]; commitRaw(form,buildRaw(builderType,builderSubject,builderPhrases)); builderPanel(form); }
   });
 
   form.addEventListener('input', (event) => {
-    if (event.target.id === 'easy-subject') {
-      easySubject = event.target.value;
-      commitRaw(form, buildRaw(easyType, easySubject, easyPhrases));
-    }
-    if (event.target.id === 'builder-subject') {
-      builderSubject = event.target.value;
-      commitRaw(form, buildRaw(builderType, builderSubject, builderPhrases));
-    }
+    if (event.target.id === 'easy-subject') { easySubject=event.target.value; commitRaw(form,buildRaw(easyType,easySubject,easyPhrases)); easyPanel(form); }
+    if (event.target.id === 'builder-subject') { builderSubject=event.target.value; commitRaw(form,buildRaw(builderType,builderSubject,builderPhrases)); builderPanel(form); }
+    if (event.target.id === 'query' && composerMode === 'text') textPanel(form);
   });
-
   form.querySelectorAll('[data-composer-mode]').forEach((button) => button.classList.toggle('active', button.dataset.composerMode === composerMode));
   applyMode(form);
 }
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-}
-
-function scan() {
-  const form = document.querySelector('#watch-form');
-  if (form) enhance(form);
-}
-
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
+function scan() { const form=document.querySelector('#watch-form'); if(form)enhance(form); }
 new MutationObserver(scan).observe(document.querySelector('#app'), { childList: true, subtree: true });
 scan();
