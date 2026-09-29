@@ -1,6 +1,7 @@
 export function promoteTextEntry(root=document){
   const buttons=root.querySelectorAll?.('[data-text-helper-toggle]')||[];
   for(const button of buttons){
+    if(button.classList.contains('text-entry-cta'))continue;
     const composer=button.closest('.unified-composer');
     const selector=composer?.querySelector('.domain-selector');
     if(!composer||!selector)continue;
