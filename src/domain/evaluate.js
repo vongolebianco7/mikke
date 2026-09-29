@@ -40,6 +40,7 @@ function shapeEvaluation(result) {
   }));
   const nearMatch = !result.requiredMatch
     && result.unknownRequired.length === 0
+    && result.unsupportedRequired.length === 0
     && result.failedRequired.length === 1
     && result.score >= 60;
   return {
@@ -49,6 +50,7 @@ function shapeEvaluation(result) {
     nearMatch,
     failedRequired: result.failedRequired,
     unknownRequired: result.unknownRequired,
+    unsupportedRequired: result.unsupportedRequired,
   };
 }
 
@@ -72,7 +74,7 @@ export function evaluateCandidate(watch, candidate) {
   const reasons = [...requiredResults, ...preferredResults].map(([key, ok]) => ({ key, ok }));
   const failedRequired = requiredResults.filter(([, ok]) => !ok).map(([key]) => key);
   const nearMatch = !requiredMatch && failedRequired.length === 1 && score >= 60;
-  return { requiredMatch, score, reasons, nearMatch, failedRequired, unknownRequired: [] };
+  return { requiredMatch, score, reasons, nearMatch, failedRequired, unknownRequired: [], unsupportedRequired: [] };
 }
 
 function numeric(value) {
