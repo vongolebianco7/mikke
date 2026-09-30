@@ -8,26 +8,34 @@ PUBLIC_BETA is allowed only when Gate A, Gate B, and Gate C all pass.
 
 ## Gate A — Automated CI
 
-Evidence recorded from GitHub Actions run `36495034018` on feature code head `0c2f6d699249cbaac51187af9f6b4f72102e7027`:
+Latest integrated feature evidence before this documentation-only refresh:
 
+- Feature code head: `0b92615b72e0660719a4055ae0eed9b6fd4f759b`
+- GitHub Actions release-gates run: `36725486982`
 - [x] `test` passes
 - [x] `security` passes
 - [x] `compliance-static` passes
 - [x] `build` passes
 
-This run covers the Watch Intelligence redesign: backward-compatible Watch normalization, phrase suggestions, required/preferred/notification conditions, observed relative-price events, strictness/relaxation guidance, actionable Today ordering, local decision learning, and conservative strong-identifier product grouping.
+This evidence covers the integrated Product Watch / Compatibility work, including:
+- broad product-domain support
+- required / preferred / notification / comparison roles
+- compatibility evaluation and ranking
+- explicit compatible / incompatible / unknown / unsupported evidence states
+- connector-boundary compatibility evidence handling
+- generic cross-category exclusion clauses such as `除外 / 不可 / 不要`
 
-Any code change after this evidence requires a fresh Gate A run before release.
+Because this file update changes the branch HEAD, a fresh release-gates run for the documentation-refresh commit must also pass before release.
 
-## Preview environment
+## Release-candidate environment
 
 - Git repository: `vongolebianco7/mikke`
 - Feature branch: `feat/mikke-mvp`
-- Current temporary preview host: Floot view-only preview
-- Preview code pin: `0c2f6d699249cbaac51187af9f6b4f72102e7027`
-- Purpose: iPhone/manual review only; this is not production approval.
-- The temporary preview is not a PUBLIC_BETA environment and is not evidence for Gate C.
-- Existing Vercel `main` production deployment remains the earlier safe scaffold and does not contain this feature branch.
+- Validated PUBLIC_BETA release-candidate URL: _pending_
+- Existing Vercel deployment status on feature code head `0b92615b...`: **deployment rate limited**
+- Vercel status description: `Deployment rate limited — retry in 24 hours.`
+- Therefore no stable release-candidate environment is currently accepted as Gate C evidence.
+- Existing `main` deployment remains separate from this feature branch.
 
 ## Gate B — Manual compliance
 
@@ -77,10 +85,11 @@ Any code change after this evidence requires a fresh Gate A run before release.
 - [ ] Production credentials configured server-side only
 - [ ] iPhone Safari attribution visually verified
 - [ ] Demo/live distinction visually verified
+- [ ] Compatibility state wording visually verified (`compatible / incompatible / unknown / unsupported`)
 - [ ] Privacy notice matches production data flow
 - [ ] Pricing wording checked for misleading claims
 - [ ] Contact path verified
-- [ ] Git history / secret review completed at release candidate HEAD
+- [ ] Git history / secret review completed at release-candidate HEAD
 
 ## Gate C — Production smoke
 
@@ -90,10 +99,12 @@ Reviewer: _pending_
 
 - [ ] App loads in current iPhone Safari
 - [ ] Watch creation works
+- [ ] Watch edit / save / reload works
 - [ ] Every enabled live provider works
 - [ ] Provider attribution is visible and unmodified
 - [ ] Demo mode is unmistakable
 - [ ] Provider failure never masquerades as live data
+- [ ] Missing compatibility evidence never becomes a confirmed match
 - [ ] Rate limiting returns 429 without calling upstream
 - [ ] Product links open safely
 - [ ] Privacy notice is reachable
@@ -115,4 +126,4 @@ otherwise
 
 Current decision: **PUBLIC_BETA = BLOCKED**
 
-Reason: Gate A is green for the current feature code, but provider-side operator registration/acceptance, deployed iPhone attribution verification, and production smoke testing remain incomplete.
+Reason: automated Gate A is green for the integrated feature code, but operator-side provider registration/acceptance, a stable release-candidate deployment, deployed iPhone attribution verification, and production smoke testing remain incomplete.
