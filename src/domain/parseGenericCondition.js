@@ -1,15 +1,34 @@
 import { inferProductCategory } from './categoryTemplates.js';
 import { normalizeCondition, normalizeDomainCondition, normalizeTrigger } from './watchSchema.js';
+import { normalizeCompatibilityCondition } from './compatibilityEngine.js';
 
 const COLOR_MAP={'グレー':'gray','灰色':'gray','白':'white','ホワイト':'white','黒':'black','ブラック':'black','ベージュ':'beige','ネイビー':'navy','青':'blue','ブルー':'blue','赤':'red','レッド':'red'};
 const DOMAIN_BY_CATEGORY={fashion:'fashion',appliances:'appliance',furniture:'furniture',food:'food',used_car:'used_car',baby:'baby',sports:'sports',electronics:'electronics',daily_goods:'daily_goods',beauty:'beauty',pet:'pet',hobby:'hobby'};
 const FIELD_MAP={capacity:'totalCapacity',installation_width:'installationWidth',freezer_capacity:'freezerCapacity',release_year:'releaseYear',origin_country:'originCountry',expiration_date:'expirationDate',storage_method:'storageMethod',model_year:'modelYear',repair_history:'repairHistory',fuel_type:'fuelType',seat_count:'seatCount',load_capacity:'loadCapacity',assembly_required:'assemblyRequired'};
 function condition(attributeId,operator,value,unit,role='required',source='category'){return normalizeCondition({attributeId,operator,value,unit,role,source})}
 function trigger(metric,operator,value,unit,reference='current',scope='candidate'){return normalizeTrigger({metric,operator,value,unit,reference,scope,role:'notification'})}
+function compatibility(id,relation,target,subjectType='product',role='required'){return normalizeCompatibilityCondition({id,relation,target,subjectType,role})}
 function priceValue(text){const normalized=text.replace(/,/g,'');const man=normalized.match(/(\d+(?:\.\d+)?)\s*万円/);if(man)return Math.round(Number(man[1])*10000);const yen=normalized.match(/(\d{3,8})\s*円/);return yen?Number(yen[1]):undefined}
 function colorValues(text){const found=[];for(const[jp,id]of Object.entries(COLOR_MAP))if(text.includes(jp))found.push(id);return[...new Set(found)]}
 function firstClause(text){return text.split(/[、,]/)[0].trim()}
 function toDomainCondition(item,domain){let fieldId=FIELD_MAP[item.attributeId]||item.attributeId;if(item.attributeId==='price'&&domain==='used_car')fieldId='totalPrice';return normalizeDomainCondition({fieldId,operator:item.operator,value:item.value,unit:item.unit,role:item.role})}
+function toMonths(value,unit){return unit==='歳'?Math.round(Number(value)*12):Number(value)}
+function parseCompatibility(text,domain){
+  const items=[];
+  const device=text.match(/(iPhone\s*\d+(?:\s*(?:Pro Max|Pro|Plus|Air))?|Pixel\s*\d+(?:\s*(?:Pro|a|Fold))?|Galaxy\s*[A-Z]?\d+(?:\s*(?:Ultra|Plus|FE))?)\s*(?:対応|用)/i);
+  if(device)items.push(compatibility('compat-device','compatible_with',{type:'device',model:device[1].replace(/\s+/g,' ').trim()},'accessory'));
+  if(domain==='baby'){
+    const minAge=text.match(/(\d+(?:\.\d+)?)\s*(ヶ月|か月|歳)\s*(?:から|以上)/);
+    const maxAge=text.match(/(\d+(?:\.\d+)?)\s*(ヶ月|か月|歳)\s*(?:まで|以下)/);
+    if(minAge||maxAge){const target={type:'age_range'};if(minAge)target.minAgeMonths=toMonths(minAge[1],minAge[2]);if(maxAge)target.maxAgeMonths=toMonths(maxAge[1],maxAge[2]);items.push(compatibility('compat-age-range','within_limits',target,'product'))}
+    const minWeight=text.match(/(\d+(?:\.\d+)?)\s*kg\s*(?:から|以上)/i);
+    const maxWeight=text.match(/(\d+(?:\.\d+)?)\s*kg\s*(?:まで|以下)/i);
+    if(minWeight||maxWeight){const target={type:'weight_range'};if(minWeight)target.minWeightKg=Number(minWeight[1]);if(maxWeight)target.maxWeightKg=Number(maxWeight[1]);items.push(compatibility('compat-weight-range','within_limits',target,'product'))}
+  }
+  const vehicle=text.match(/(ヴェゼル|VEZEL|プリウス)(?:[^、,]*?(20\d{2})年式)?[^、,]*(?:対応|適合|に付く|取り付け)/i);
+  if(vehicle){const target={type:'vehicle',model:vehicle[1]};if(vehicle[2])target.modelYear=Number(vehicle[2]);items.push(compatibility('compat-vehicle','compatible_with',target,'accessory'))}
+  return items;
+}
 
 export function parseGenericConditionClauses(raw){
   const text=String(raw||'').trim(),inferred=inferProductCategory(text),domain=DOMAIN_BY_CATEGORY[inferred.categoryId]||'fashion';
@@ -29,5 +48,6 @@ export function parseGenericConditionClauses(raw){
   const couponPercent=text.match(/(\d{1,2})\s*%\s*(?:OFF|オフ)\s*クーポン|クーポン[^、,]*(\d{1,2})\s*%/i);if(couponPercent)addTrigger(trigger('coupon_discount_percent','gte',Number(couponPercent[1]||couponPercent[2]),'%','current'));if(/クーポン(?:が)?(?:出た|発行|利用可能|あり)/.test(text))addTrigger(trigger('coupon_available','changed_to',true,undefined,'previous_observation'));if(/予約開始|予約できるようになったら/.test(text))addTrigger(trigger('preorder_status','changed_to','open',undefined,'previous_observation'));if(/発売されたら|発売開始|発売になったら/.test(text))addTrigger(trigger('release_status','changed_to','released',undefined,'previous_observation'));
   if(/(?:今より|前回(?:確認)?より).*(?:安く|値下がり)/.test(text))addTrigger(trigger('price','lt',undefined,'JPY','previous_observation'));const pct=text.match(/(\d{1,2})\s*%\s*以上(?:に)?(?:値下がり|安く)/);if(pct)addTrigger(trigger('discount_percent','gte',Number(pct[1]),'%',/(登録時|最初)/.test(text)?'initial_observation':'previous_observation'));if(/登録時.*(?:安く|値下がり)/.test(text)&&!pct)addTrigger(trigger('price','lt',undefined,'JPY','initial_observation'));if(/登録後最安値|Mikke.*最安値/i.test(text))addTrigger(trigger('price','lt',undefined,'JPY','watch_low'));
   const domainConditions=conditions.map((item)=>toDomainCondition(item,domain));
-  return{domain,target:{...target,domain,subcategoryId:target.subcategoryId},domainConditions,conditions,triggers};
+  const compatibilityConditions=parseCompatibility(text,domain);
+  return{domain,target:{...target,domain,subcategoryId:target.subcategoryId},domainConditions,conditions,compatibilityConditions,triggers};
 }
