@@ -7,6 +7,7 @@ import {
   evaluateCompatibilityConditions,
 } from '../src/domain/compatibilityEngine.js';
 import { getCompatibilitySemantics } from '../src/domain/categorySemantics.js';
+import { normalizeDomainWatch } from '../src/domain/watchSchema.js';
 
 test('compatibility condition keeps relation, target and role separate from normal field conditions',()=>{
   const c=normalizeCompatibilityCondition({
@@ -47,4 +48,15 @@ test('representative product domains expose compatibility semantics',()=>{
   assert.deepEqual(getCompatibilitySemantics('baby','stroller').map(x=>x.conceptId),['age_range','weight_range']);
   assert.deepEqual(getCompatibilitySemantics('used_car').map(x=>x.conceptId),['vehicle_model','model_year','vehicle_code']);
   assert.deepEqual(getCompatibilitySemantics('appliance','refrigerator').map(x=>x.conceptId),['installation_space']);
+});
+
+test('domain watches persist normalized compatibility conditions separately from field conditions',()=>{
+  const watch=normalizeDomainWatch({
+    domain:'electronics',
+    domainConditions:[{fieldId:'price',operator:'lte',value:10000,unit:'JPY',role:'notification'}],
+    compatibilityConditions:[{id:'phone-fit',relation:'compatible_with',target:{type:'device',model:'iPhone 17 Pro'},role:'required'}],
+  });
+  assert.equal(watch.domainConditions.length,1);
+  assert.equal(watch.compatibilityConditions.length,1);
+  assert.equal(watch.compatibilityConditions[0].target.model,'iPhone 17 Pro');
 });
