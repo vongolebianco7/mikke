@@ -48,6 +48,22 @@ function ensureDomainEvidence(watch, facts, dataMode, candidate) {
   return next;
 }
 
+function ensureCompatibilityEvidence(watch, candidate, dataMode) {
+  const supplied = candidate?.compatibilityEvidence;
+  const next = supplied && typeof supplied === 'object' && !Array.isArray(supplied)
+    ? structuredClone(supplied)
+    : {};
+  if (!Array.isArray(watch?.compatibilityConditions)) return next;
+  for (const condition of watch.compatibilityConditions) {
+    const id=condition?.id;
+    if (!id || next[id] !== undefined) continue;
+    next[id]=dataMode==='official'
+      ? { state:'unsupported', source:candidate?.source || candidate?.provider || 'official_connector', reason:'connector_compatibility_not_supported' }
+      : { state:'unknown', source:'sample', reason:'sample_compatibility_missing' };
+  }
+  return next;
+}
+
 function pushUnique(events, additions) {
   for (const addition of additions) {
     const duplicate = events.some((event) => event.kind === addition.kind
@@ -102,7 +118,8 @@ export async function runWatchCheck(watch, previousByCandidate = {}, options = {
     const enriched = { ...candidate, dataMode, referencePriceDefined: dataMode === 'sample' && Number.isFinite(candidate.previousPrice) };
     const baseFacts = ensureDomainEvidence(watch, factsFromCandidate(enriched), dataMode, enriched);
     const currentFacts = { ...baseFacts, ...derivePurchaseMetrics(baseFacts) };
-    const evaluation = evaluateCandidate(watch, { ...enriched, facts: currentFacts });
+    const compatibilityEvidence = ensureCompatibilityEvidence(watch, enriched, dataMode);
+    const evaluation = evaluateCandidate(watch, { ...enriched, facts: currentFacts, compatibilityEvidence });
     const current = {
       candidateId: enriched.id,
       price: enriched.price,
@@ -129,7 +146,7 @@ export async function runWatchCheck(watch, previousByCandidate = {}, options = {
     ).map((event) => ({ ...event, candidateId: enriched.id }));
     pushUnique(events, genericEvents);
 
-    return { ...enriched, evaluation, facts: currentFacts, observation: current };
+    return { ...enriched, compatibilityEvidence, evaluation, facts: currentFacts, observation: current };
   }).sort((a, b) => b.evaluation.score - a.evaluation.score || a.price - b.price);
 
   appendCheaperProviderEvents(candidates, previousByCandidate, events);
