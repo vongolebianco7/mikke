@@ -5,12 +5,23 @@ import { normalizeCompatibilityCondition } from './compatibilityEngine.js';
 const COLOR_MAP={'グレー':'gray','灰色':'gray','白':'white','ホワイト':'white','黒':'black','ブラック':'black','ベージュ':'beige','ネイビー':'navy','青':'blue','ブルー':'blue','赤':'red','レッド':'red'};
 const DOMAIN_BY_CATEGORY={fashion:'fashion',appliances:'appliance',furniture:'furniture',food:'food',used_car:'used_car',baby:'baby',sports:'sports',electronics:'electronics',daily_goods:'daily_goods',beauty:'beauty',pet:'pet',hobby:'hobby'};
 const FIELD_MAP={capacity:'totalCapacity',installation_width:'installationWidth',freezer_capacity:'freezerCapacity',release_year:'releaseYear',origin_country:'originCountry',expiration_date:'expirationDate',storage_method:'storageMethod',model_year:'modelYear',repair_history:'repairHistory',fuel_type:'fuelType',seat_count:'seatCount',load_capacity:'loadCapacity',assembly_required:'assemblyRequired'};
+const STRUCTURED_EXCLUSION_TERMS=new Set(['中古']);
 function condition(attributeId,operator,value,unit,role='required',source='category'){return normalizeCondition({attributeId,operator,value,unit,role,source})}
 function trigger(metric,operator,value,unit,reference='current',scope='candidate'){return normalizeTrigger({metric,operator,value,unit,reference,scope,role:'notification'})}
 function compatibility(id,relation,target,subjectType='product',role='required'){return normalizeCompatibilityCondition({id,relation,target,subjectType,role})}
 function priceValue(text){const normalized=text.replace(/,/g,'');const man=normalized.match(/(\d+(?:\.\d+)?)\s*万円/);if(man)return Math.round(Number(man[1])*10000);const yen=normalized.match(/(\d{3,8})\s*円/);return yen?Number(yen[1]):undefined}
 function colorValues(text){const found=[];for(const[jp,id]of Object.entries(COLOR_MAP))if(text.includes(jp))found.push(id);return[...new Set(found)]}
 function firstClause(text){return text.split(/[、,]/)[0].trim()}
+function exclusionTerms(text){
+  const terms=[];
+  for(const rawClause of String(text).split(/[、,]/)){
+    const clause=rawClause.trim();
+    const match=clause.match(/^(.+?)(?:除外|不可|不要)$/);
+    const term=match?.[1]?.trim();
+    if(term&&!STRUCTURED_EXCLUSION_TERMS.has(term))terms.push(term);
+  }
+  return [...new Set(terms)];
+}
 function toDomainCondition(item,domain){let fieldId=FIELD_MAP[item.attributeId]||item.attributeId;if(item.attributeId==='price'&&domain==='used_car')fieldId='totalPrice';return normalizeDomainCondition({fieldId,operator:item.operator,value:item.value,unit:item.unit,role:item.role})}
 function toMonths(value,unit){return unit==='歳'?Math.round(Number(value)*12):Number(value)}
 function parseCompatibility(text,domain){
@@ -35,6 +46,7 @@ export function parseGenericConditionClauses(raw){
   const target={...inferred,title:firstClause(text)},conditions=[],triggers=[],seenConditions=new Set(),seenTriggers=new Set();
   const addCondition=(item)=>{if(!item)return;const key=`${item.attributeId}:${item.operator}:${JSON.stringify(item.value)}:${item.role}`;if(!seenConditions.has(key)){seenConditions.add(key);conditions.push(item)}};
   const addTrigger=(item)=>{if(!item)return;const key=`${item.metric}:${item.operator}:${item.reference}:${JSON.stringify(item.value)}`;if(!seenTriggers.has(key)){seenTriggers.add(key);triggers.push(item)}};
+  for(const term of exclusionTerms(text))addCondition(condition('title','not_contains_text',term,undefined,'required','common'));
   const size=text.match(/(\d{2}(?:\.\d)?)\s*cm/i);if(size&&!/(幅|高さ|奥行|設置幅)[^、,]*\d{2}(?:\.\d)?\s*cm/i.test(text))addCondition(condition('size','eq',`${size[1]}cm`,undefined,'required','common'));
   const colors=colorValues(text);if(colors.length)addCondition(condition('color','in',colors,undefined,/必須|絶対/.test(text)?'required':'preferred','common'));if(/新品(?:のみ)?|中古不可|中古は嫌/.test(text))addCondition(condition('condition','eq','new',undefined,'required','common'));
   const capacity=text.match(/(?:容量\s*)?(\d{2,4}(?:\.\d+)?)\s*[lL]\s*(以上|以下)?/);if(capacity)addCondition(condition('capacity',capacity[2]==='以下'?'lte':'gte',Number(capacity[1]),'L'));
