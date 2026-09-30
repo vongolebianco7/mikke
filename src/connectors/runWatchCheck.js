@@ -1,10 +1,13 @@
 import { evaluateCandidate, deriveEvents } from '../domain/evaluate.js';
-import { factsFromCandidate, factKnown, factUnknown } from '../domain/candidateFacts.js';
+import { factsFromCandidate, factKnown, factUnknown, factUnsupported } from '../domain/candidateFacts.js';
 import { derivePurchaseMetrics } from '../domain/purchaseMetrics.js';
 import { evaluateTriggers } from '../domain/triggerEngine.js';
 import { groupProducts } from '../domain/groupProducts.js';
 import { searchSampleShopping } from './sampleShopping.js';
 import { searchOfficialShopping } from './officialShopping.js';
+
+const PRODUCT_DOMAINS=new Set(['fashion','appliance','furniture','food','used_car']);
+function isShoppingWatch(watch){return watch?.type==='shopping'||PRODUCT_DOMAINS.has(watch?.domain)}
 
 function splitHistoryEntry(entry) {
   if (!entry) return { previous: undefined, context: {} };
@@ -30,6 +33,19 @@ function factsFromObservation(observation) {
       : observation.available === false ? factKnown('out_of_stock', { source: 'mikke_history' })
         : factUnknown({ source: 'mikke_history' }),
   };
+}
+
+function ensureDomainEvidence(watch, facts, dataMode, candidate) {
+  const next={...facts};
+  if (!Array.isArray(watch?.domainConditions)) return next;
+  for (const condition of watch.domainConditions) {
+    const key=condition?.fieldId;
+    if (!key || next[key] !== undefined) continue;
+    next[key]=dataMode==='official'
+      ? factUnsupported({ source:candidate?.source || candidate?.provider || 'official_connector', reason:'connector_field_not_supported' })
+      : factUnknown({ source:'sample', reason:'sample_field_missing' });
+  }
+  return next;
 }
 
 function pushUnique(events, additions) {
@@ -69,7 +85,7 @@ function appendCheaperProviderEvents(candidates, previousByCandidate, events) {
 }
 
 export async function runWatchCheck(watch, previousByCandidate = {}, options = {}) {
-  if (watch.type !== 'shopping') {
+  if (!isShoppingWatch(watch)) {
     return { status: 'connector_pending', candidates: [], events: [] };
   }
 
@@ -84,9 +100,9 @@ export async function runWatchCheck(watch, previousByCandidate = {}, options = {
   const events = [];
   const candidates = rawCandidates.map((candidate) => {
     const enriched = { ...candidate, dataMode, referencePriceDefined: dataMode === 'sample' && Number.isFinite(candidate.previousPrice) };
-    const evaluation = evaluateCandidate(watch, enriched);
-    const baseFacts = factsFromCandidate(enriched);
+    const baseFacts = ensureDomainEvidence(watch, factsFromCandidate(enriched), dataMode, enriched);
     const currentFacts = { ...baseFacts, ...derivePurchaseMetrics(baseFacts) };
+    const evaluation = evaluateCandidate(watch, { ...enriched, facts: currentFacts });
     const current = {
       candidateId: enriched.id,
       price: enriched.price,

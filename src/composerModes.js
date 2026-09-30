@@ -1,211 +1,79 @@
-import { buildComposerModel, attributePresetPhrases } from './domain/composerModel.js';
+import { buildComposerModel, createComposerModel, applyComposerCondition, applyFlightTravelIntentEdit, applyFlightFilterEdit } from './domain/composerModel.js';
+import { getDomainField } from './domain/domainSchemas.js';
+import { parseWatchQuery } from './domain/parseWatch.js';
+import { createComposerDraft, switchComposerDomain, applyParsedWatch } from './domain/composerDraft.js';
 
-const MODE_KEY = 'mikke.composer.mode.v1';
-let composerMode = localStorage.getItem(MODE_KEY) || '';
-let easyType = 'shopping';
-let easySubject = '';
-let easyPhrases = [];
-let builderType = 'shopping';
-let builderSubject = '';
-let builderPhrases = [];
-let builderGroup = 'common';
-let builderAttribute = 'price';
+let activeDomain='shopping';
+let composerDraft=createComposerDraft({schemaVersion:3,domain:'shopping',target:{title:''},domainConditions:[],triggers:[],metadata:{rawQuery:''}});
+const schemaLevels=['basic','common','detailed','advanced'];
+const labels={shopping:{name:'商品',placeholder:'例：冷蔵庫、New Balance 996、ソファ'},flight:{name:'航空券',placeholder:'例：東京からホノルル'},hotel:{name:'ホテル',placeholder:'例：軽井沢'}};
+const shoppingPrimaryFields={appliance:['totalCapacity','width','color','condition'],fashion:['size','color','condition'],furniture:['width','depth','color','material','condition'],food:['weight','quantity','originCountry'],used_car:['modelYear','mileage','repairHistory']};
+const shoppingAdvancedFields={appliance:['depth','releaseYear','warrantyYears'],fashion:['material','fit','returnable','sizeExchangeAllowed'],furniture:['height','seatCount','shippingFee','installationService'],food:['unitPricePer100g','minimumRemainingShelfLife','storageMethod','additiveFree'],used_car:['trim','oneOwner','nonSmoking','fuelType','dealerCertified']};
+const shoppingOperators={totalCapacity:'gte',width:'lte',depth:'lte',height:'lte',weight:'gte',quantity:'gte',modelYear:'gte',mileage:'lte',shippingFee:'lte',unitPricePer100g:'lte',minimumRemainingShelfLife:'gte',warrantyYears:'gte',seatCount:'gte',color:'in',condition:'in'};
 
-const labels = {
-  shopping: { name: '商品', placeholder: '例：冷蔵庫、スニーカー、ソファ' },
-  flight: { name: '航空券', placeholder: '例：東京からホノルル' },
-  hotel: { name: 'ホテル', placeholder: '例：軽井沢' },
-};
+function textarea(form){return form.querySelector('#query')}
+function viewDomain(domain){return domain==='flight'?'flight':domain==='hotel'?'hotel':'shopping'}
+function draftRaw(){return String(composerDraft.watch.metadata?.rawQuery||composerDraft.watch.rawQuery||'').trim()}
+function rawParts(){return draftRaw().split(/[、,]/).map((x)=>x.trim()).filter(Boolean)}
+function subjectText(){return rawParts()[0]||composerDraft.watch.target?.title||''}
+function publishDraft(form){if(!form)return;form._mikkeDraft=structuredClone(composerDraft.watch);form._mikkeFlightDraft=composerDraft.watch.domain==='flight'?structuredClone(composerDraft.watch):null;form.dataset.submitStructured='false'}
+function publishFlightDraft(form){publishDraft(form)}
+function setDraftWatch(watch,form){composerDraft={...composerDraft,domain:watch.domain,watch};activeDomain=viewDomain(watch.domain);publishDraft(form)}
+function parseAndApply(form,raw){const text=String(raw||'').trim();if(!text)return false;const parsed=parseWatchQuery(text);if(!parsed)return false;composerDraft=applyParsedWatch(composerDraft,parsed);activeDomain=viewDomain(composerDraft.watch.domain);publishDraft(form);return true}
+function applyRaw(form,raw){const input=textarea(form);if(!input)return;input.value=raw;parseAndApply(form,raw)}
+function buildRaw(type,currentSubject){const clean=currentSubject.trim();if(type==='flight')return clean&&/航空券/.test(clean)?clean:[clean,'航空券'].filter(Boolean).join('、');if(type==='hotel')return clean&&/ホテル|宿|旅館/.test(clean)?clean:[clean,'ホテル'].filter(Boolean).join('、');return clean}
+function hydrateFromRaw(raw,form){parseAndApply(form,raw)}
+function domainButtons(){return Object.entries(labels).map(([key,item])=>`<button type="button" class="domain-choice ${activeDomain===key?'active':''}" data-composer-domain="${key}"><b>${item.name}</b><span>${key==='shopping'?'モノ':key==='flight'?'移動':'宿泊'}</span></button>`).join('')}
+function modelFor(type,currentSubject){return type==='shopping'?buildComposerModel(currentSubject):createComposerModel({type,raw:currentSubject})}
+function categoryName(model,domain){return model.displayName||{fashion:'ファッション',appliances:'家電',appliance:'家電',furniture:'家具',food:'食品',used_car:'中古車'}[domain||model.categoryId]||'商品'}
+function currentCondition(fieldId){return(composerDraft.watch.domainConditions||[]).find((item)=>item.fieldId===fieldId)}
+function conditionValue(fieldId,fallback=''){const value=currentCondition(fieldId)?.value;return Array.isArray(value)?value.join('、'):(value??fallback)}
+function removeCondition(fieldId,form){setDraftWatch({...composerDraft.watch,domainConditions:(composerDraft.watch.domainConditions||[]).filter((item)=>item.fieldId!==fieldId)},form)}
+function setCondition(fieldId,value,form,role='required',operator){const field=getDomainField(composerDraft.watch.domain,fieldId);if(!field)return;const resolved=operator||(field.type==='boolean'?(value===false?'is_false':'is_true'):(field.operators?.[0]||'eq'));setDraftWatch(applyComposerCondition(composerDraft.watch,{id:`composer-${fieldId}`,fieldId,operator:resolved,value,unit:field.unit,role}),form)}
+function triggerKey(trigger){return`${trigger.metric||''}:${trigger.scope||''}:${trigger.reference||''}`}
+function findTrigger(metric,scope='',reference=''){return(composerDraft.watch.triggers||[]).find((item)=>triggerKey(item)===`${metric}:${scope}:${reference}`)}
+function setTrigger(trigger,form){const key=triggerKey(trigger),triggers=[...(composerDraft.watch.triggers||[])].filter((item)=>triggerKey(item)!==key);triggers.push(trigger);setDraftWatch({...composerDraft.watch,triggers},form)}
+function removeTrigger(metric,form,scope='',reference=''){const key=`${metric}:${scope}:${reference}`;setDraftWatch({...composerDraft.watch,triggers:(composerDraft.watch.triggers||[]).filter((item)=>triggerKey(item)!==key)},form)}
 
-const legacyEasyOptions = {
-  flight: ['直行便', '往復10万円以下', '今より安くなったら', '10%以上値下がりしたら'],
-  hotel: ['2万円以下', '今より安くなったら', '10%以上値下がりしたら'],
-};
-const legacyBuilderOptions = {
-  flight: { price:['往復10万円以下','今より安くなったら','10%以上値下がりしたら'], notify:[] },
-  hotel: { price:['2万円以下','今より安くなったら','10%以上値下がりしたら'], notify:[] },
-};
+function flightDraft(form){if(composerDraft.watch.domain!=='flight'){composerDraft=switchComposerDomain(composerDraft,'flight');activeDomain='flight';publishDraft(form)}return composerDraft.watch}
+function updateFlight(form,edit){setDraftWatch(applyFlightTravelIntentEdit(flightDraft(form),edit),form)}
+function updateFlightFilter(form,edit){setDraftWatch(applyFlightFilterEdit(flightDraft(form),edit),form)}
+function flightFilter(fieldId){return(composerDraft.watch.flightFilters||[]).find((item)=>item.fieldId===fieldId)}
+function placeTokens(set,key){if(set.mode==='anywhere')return'<span class="flight-token fixed">どこでも</span>';return(set.places||[]).map((p,index)=>`<span class="flight-token">${escapeHtml(p.label)}<button type="button" aria-label="削除" data-flight-${key}-remove="${index}">×</button></span>`).join('')}
+function stayText(option){const s=option?.stayLength;if(!s)return'';return s.minNights===s.maxNights?`${s.minNights}泊`:`${s.minNights}〜${s.maxNights}泊`}
+function dateOptionText(option){if(option.kind==='exact')return`${option.outboundDate||'未指定'}${option.returnDate?` → ${option.returnDate}`:''}`;if(option.kind==='flexible')return`${option.outboundDate||''} 前後${option.outboundFlexDays||0}日`;if(option.kind==='month')return`${option.year}年${option.month}月のどこか ${stayText(option)}`.trim();if(option.kind==='range')return`${option.startDate}〜${option.endDate} ${stayText(option)}`.trim();return`いつでも ${stayText(option)}`.trim()}
+function dateCards(intent){return(intent.dateSet.options||[]).map((option,index)=>`<div class="flight-date-card"><span>${escapeHtml(dateOptionText(option))}</span><button type="button" aria-label="削除" data-flight-date-remove="${index}">×</button></div>`).join('')||'<small class="flight-empty">候補日を追加できます</small>'}
+function flightDateEditor(){const mode=composerDraft.ui.flightDateMode||'exact';if(mode==='month')return`<div class="flight-date-editor"><input type="month" data-flight-month><input type="number" min="1" max="60" placeholder="最短泊" data-flight-stay-min><input type="number" min="1" max="60" placeholder="最長泊" data-flight-stay-max><button type="button" data-flight-date-add="month">候補を追加</button></div>`;if(mode==='range')return`<div class="flight-date-editor"><input type="date" data-flight-range-start><input type="date" data-flight-range-end><input type="number" min="1" max="60" placeholder="最短泊" data-flight-stay-min><input type="number" min="1" max="60" placeholder="最長泊" data-flight-stay-max><button type="button" data-flight-date-add="range">候補を追加</button></div>`;if(mode==='anytime')return`<div class="flight-date-editor"><input type="number" min="1" max="60" placeholder="最短泊" data-flight-stay-min><input type="number" min="1" max="60" placeholder="最長泊" data-flight-stay-max><button type="button" data-flight-date-add="anytime">いつでもを追加</button></div>`;return`<div class="flight-date-editor"><input type="date" data-flight-outbound><input type="date" data-flight-return><button type="button" data-flight-date-add="exact">候補を追加</button></div>`}
+function choiceButton(attr,value,label,current){return`<button type="button" ${attr}="${value}" class="${current===value?'active':''}">${label}</button>`}
 
-function textarea(form) { return form.querySelector('#query'); }
-function commitRaw(form, raw) {
-  const input = textarea(form);
-  if (!input) return;
-  input.value = raw;
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-}
-function buildRaw(type, subject, phrases) {
-  const parts = [];
-  const clean = subject.trim();
-  if (clean) parts.push(clean);
-  if (type === 'flight') parts.push('航空券');
-  if (type === 'hotel') parts.push('ホテル');
-  parts.push(...phrases);
-  return parts.filter(Boolean).join('、');
-}
-function hydrateFromRaw(raw) {
-  const parts = String(raw || '').split(/[、,]/).map((x) => x.trim()).filter(Boolean);
-  const subject = parts[0] || '';
-  const phrases = parts.slice(1).filter((x) => !['航空券','ホテル'].includes(x));
-  easySubject = subject; builderSubject = subject;
-  easyPhrases = [...phrases]; builderPhrases = [...phrases];
-}
-function typeButtons(selected, attr) {
-  return Object.entries(labels).map(([key, item]) => `
-    <button type="button" class="type-choice ${selected === key ? 'active' : ''}" ${attr}="${key}">
-      <b>${item.name}</b><span>${key === 'shopping' ? 'モノ' : key === 'flight' ? '移動' : '宿泊'}</span>
-    </button>`).join('');
-}
+function notificationBlock(domain){const target=findTrigger('price'),availability=findTrigger('availability'),award=findTrigger('availability','award'),drop=findTrigger('price_drop_percent'),watchLow=findTrigger('price','','watch_low');const availabilityLabel=domain==='flight'?'空席が出たら':domain==='hotel'?'空室が出たら':'在庫が出たら';return`<section class="unified-notification domain-notification"><div><b>いつ知らせる？</b><small>検索条件とは分けて、知らせるタイミングを設定します</small></div><label class="notification-price"><span>価格が</span><input type="number" min="0" value="${escapeHtml(target?.value??'')}" placeholder="上限価格" data-notify-price><span>円以下</span></label><div class="notification-actions"><button type="button" class="${availability?'active':''}" data-notify-trigger="availability">${availabilityLabel}</button>${domain==='flight'?`<button type="button" class="${award?'active':''}" data-notify-trigger="award">特典空席が出たら</button>`:''}${domain==='shopping'?`<button type="button" class="${drop?'active':''}" data-notify-trigger="price_drop_percent">値下がりしたら</button><button type="button" class="${watchLow?'active':''}" data-notify-trigger="watch_low">登録後最安になったら</button>`:''}</div><strong class="notification-summary">${(composerDraft.watch.triggers||[]).length?`${composerDraft.watch.triggers.length}件の通知条件を設定中`:'条件に合う候補が見つかったら'}</strong></section>`}
 
-function shoppingEasyOptions(subject) {
-  const model = buildComposerModel(subject);
-  const attrs = [...model.common, ...model.category].slice(0, 7);
-  const phrases = attrs.flatMap((item) => attributePresetPhrases(item.id).slice(0, 1));
-  const triggerPhrases = model.triggers.flatMap((item) => item.phrases.slice(0, 1)).slice(0, 4);
-  return [...new Set([...phrases, ...triggerPhrases])].filter(Boolean).slice(0, 10);
-}
-function easyOptionsFor(type, subject) {
-  return type === 'shopping' ? shoppingEasyOptions(subject) : legacyEasyOptions[type] || [];
-}
-function categoryName(model) {
-  return {fashion:'ファッション',appliances:'家電',furniture:'家具',food:'食品',used_car:'中古車'}[model.categoryId] || '商品';
-}
-function easyPanel(form) {
-  const panel = form.querySelector('.composer-mode-panel');
-  if (!panel) return;
-  const model = easyType === 'shopping' ? buildComposerModel(easySubject) : null;
-  const options = easyOptionsFor(easyType, easySubject);
-  panel.innerHTML = `
-    <div class="guided-flow">
-      <div class="guided-step"><span>1</span><div><b>何を見つけておく？</b><small>まず種類を選びます</small></div></div>
-      <div class="type-choice-grid">${typeButtons(easyType, 'data-easy-type')}</div>
-      <div class="guided-step"><span>2</span><div><b>${labels[easyType].name}を入力</b><small>名前だけでOK。商品なら条件候補を自動で切り替えます</small></div></div>
-      <input class="mode-input" id="easy-subject" value="${escapeHtml(easySubject)}" placeholder="${labels[easyType].placeholder}" />
-      ${model && easySubject.trim() ? `<div class="category-detected"><span>${escapeHtml(categoryName(model))}</span><small>向けの条件を表示中</small></div>` : ''}
-      <div class="guided-step"><span>3</span><div><b>${easyType === 'shopping' ? 'よく使う条件を選ぶ' : '条件を選ぶ'}</b><small>必要なものだけタップ。あとから組み立てモードで細かく調整できます</small></div></div>
-      <div class="quick-option-grid">${options.map((item) => `<button type="button" class="${easyPhrases.includes(item) ? 'selected' : ''}" data-easy-option="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join('') || '<span class="mode-empty">商品名を入れると候補が出ます</span>'}</div>
-    </div>`;
-}
+function flightIntentPanel(form){const draft=flightDraft(form),intent=draft.travelIntent,travellerCount=(intent.travellers.adults||0)+(intent.travellers.children?.length||0)+(intent.travellers.infantsInSeat||0)+(intent.travellers.infantsOnLap||0),dateMode=composerDraft.ui.flightDateMode||'exact',cabin=intent.cabin.allowed?.[0]||'economy';const nonstop=!!flightFilter('nonstopOnly'),airlines=flightFilter('allowedAirlines'),morning=flightFilter('departureTimeRange');return`<div class="flight-intent-panel"><div class="flight-primary-meta"><div class="flight-choice-group"><small>旅程</small><div class="flight-choice-row">${choiceButton('data-flight-trip-pattern','round_trip','往復',intent.tripPattern)}${choiceButton('data-flight-trip-pattern','one_way','片道',intent.tripPattern)}${choiceButton('data-flight-trip-pattern','multi_city','複数都市',intent.tripPattern)}</div></div><div class="flight-choice-group"><small>座席</small><div class="flight-choice-row">${choiceButton('data-flight-cabin-class','economy','エコノミー',cabin)}${choiceButton('data-flight-cabin-class','premium_economy','プレエコ',cabin)}${choiceButton('data-flight-cabin-class','business','ビジネス',cabin)}${choiceButton('data-flight-cabin-class','first','ファースト',cabin)}</div></div></div><section class="flight-block"><label>出発地</label><div class="flight-token-row">${placeTokens(intent.originSet,'origin')}</div><div class="flight-add-row"><input class="mode-input" placeholder="東京・羽田など" data-flight-place-input="origin"><button type="button" data-flight-place-add="origin">＋追加</button></div></section><section class="flight-block"><label>行き先</label><div class="flight-token-row">${placeTokens(intent.destinationSet,'destination')}</div><div class="flight-add-row"><input class="mode-input" placeholder="ホノルル・シドニーなど" data-flight-place-input="destination"><button type="button" data-flight-place-add="destination">＋追加</button></div><button type="button" class="flight-anywhere ${intent.destinationSet.mode==='anywhere'?'active':''}" data-flight-anywhere>行き先はどこでも</button></section><section class="flight-block"><label>いつ行く？</label><div class="flight-date-modes"><button type="button" class="${dateMode==='exact'?'active':''}" data-flight-date-mode="exact">日付指定</button><button type="button" class="${dateMode==='month'?'active':''}" data-flight-date-mode="month">月指定</button><button type="button" class="${dateMode==='range'?'active':''}" data-flight-date-mode="range">期間指定</button><button type="button" class="${dateMode==='anytime'?'active':''}" data-flight-date-mode="anytime">いつでも</button></div>${flightDateEditor()}<div class="flight-date-options">${dateCards(intent)}</div></section><section class="flight-block flight-travellers"><label>人数</label><div><span>大人 ${intent.travellers.adults}</span><span>乳児 ${intent.travellers.infantsOnLap}</span><b>合計 ${travellerCount}人</b></div></section><section class="flight-block"><label>よく使う条件</label><div class="flight-primary-filters"><button type="button" class="${nonstop?'active':''}" data-flight-filter-preset="nonstopOnly">直行</button><button type="button" class="${airlines?'active':''}" data-flight-filter-preset="allowedAirlines">ANA / JAL</button><button type="button" class="${morning?'active':''}" data-flight-filter-preset="departureTimeRange">午前発</button></div><details class="advanced-conditions"><summary>その他の条件</summary><p>乗継回数・所要時間・手荷物・空港変更・運賃条件・マイル・諸費用などを必要なときだけ追加します。</p></details></section>${notificationBlock('flight')}</div>`}
 
-function groupItems(model, group) {
-  if (group === 'common') return model.common;
-  if (group === 'category') return model.category;
-  if (group === 'advanced') return model.advanced;
-  return model.triggers;
-}
-function builderPhraseOptions(model) {
-  if (builderGroup === 'triggers') {
-    return model.triggers.find((item) => item.id === builderAttribute)?.phrases || [];
-  }
-  return attributePresetPhrases(builderAttribute);
-}
-function builderGroupHtml(model, group, title) {
-  const entries = groupItems(model, group);
-  return `<section class="condition-family ${group === 'advanced' ? 'advanced-family' : ''}"><div class="condition-family-head"><b>${title}</b><small>${group === 'common' ? 'まずここから' : group === 'category' ? `${categoryName(model)}でよく使います` : '必要なときだけ'}</small></div><div class="condition-family-chips">${entries.map((item) => `<button type="button" class="${builderGroup === group && builderAttribute === item.id ? 'active' : ''}" data-builder-attribute="${escapeHtml(item.id)}" data-builder-group="${group}">${escapeHtml(item.label)}</button>`).join('')}</div></section>`;
-}
-function builderPanel(form) {
-  const panel = form.querySelector('.composer-mode-panel');
-  if (!panel) return;
-  if (builderType !== 'shopping') {
-    const options = legacyBuilderOptions[builderType] || {};
-    panel.innerHTML = `<div class="builder-flow"><div class="type-choice-grid compact">${typeButtons(builderType, 'data-builder-type')}</div><label class="mode-field"><b>探すもの</b><input class="mode-input" id="builder-subject" value="${escapeHtml(builderSubject)}" placeholder="${labels[builderType].placeholder}" /></label><div class="builder-summary">${summaryHtml(builderPhrases)}</div><div class="builder-options">${Object.values(options).flat().map((item)=>optionButton(item)).join('')}</div></div>`;
-    return;
-  }
-  const model = buildComposerModel(builderSubject);
-  const entries = groupItems(model, builderGroup);
-  if (!entries.some((item) => item.id === builderAttribute)) builderAttribute = entries[0]?.id || 'price';
-  const phraseOptions = builderPhraseOptions(model);
-  panel.innerHTML = `
-    <div class="builder-flow">
-      <div class="type-choice-grid compact">${typeButtons(builderType, 'data-builder-type')}</div>
-      <label class="mode-field"><b>探すもの</b><input class="mode-input" id="builder-subject" value="${escapeHtml(builderSubject)}" placeholder="${labels[builderType].placeholder}" /></label>
-      ${builderSubject.trim() ? `<div class="category-detected"><span>${escapeHtml(categoryName(model))}</span><small>条件テンプレート</small></div>` : ''}
-      <div class="builder-summary">${summaryHtml(builderPhrases)}</div>
-      ${builderGroupHtml(model,'common','よく使う条件')}
-      ${builderGroupHtml(model,'category','この商品でよく使う条件')}
-      <section class="condition-family"><div class="condition-family-head"><b>通知タイミング</b><small>いつ知らせるか</small></div><div class="condition-family-chips">${model.triggers.map((item) => `<button type="button" class="${builderGroup === 'triggers' && builderAttribute === item.id ? 'active' : ''}" data-builder-attribute="${escapeHtml(item.id)}" data-builder-group="triggers">${escapeHtml(item.label)}</button>`).join('')}</div></section>
-      <details class="advanced-conditions" ${builderGroup === 'advanced' ? 'open' : ''}><summary>その他の条件</summary>${builderGroupHtml(model,'advanced','細かく指定')}</details>
-      <div class="builder-option-title"><b>${escapeHtml(entries.find((item)=>item.id===builderAttribute)?.label || '')}</b><span>候補</span></div>
-      <div class="builder-options">${phraseOptions.map((item) => optionButton(item)).join('') || '<span class="mode-empty">自由入力でも指定できます</span>'}</div>
-    </div>`;
-}
-function summaryHtml(phrases){return phrases.length ? phrases.map((item) => `<span>${escapeHtml(item)}</span>`).join('') : '<small>下から条件を足していきます</small>'}
-function optionButton(item){return `<button type="button" class="${builderPhrases.includes(item) ? 'selected' : ''}" data-builder-option="${escapeHtml(item)}">＋ ${escapeHtml(item)}</button>`}
+function booleanHotelButton(fieldId,label){return`<button type="button" class="hotel-toggle ${currentCondition(fieldId)?'active':''}" data-hotel-field="${fieldId}" data-hotel-boolean="true">${label}</button>`}
+function hotelStayEditor(){const target=conditionValue('destination',conditionValue('area',''));return`<div class="hotel-stay-editor"><section class="hotel-section"><label>宿泊地</label><input class="mode-input" value="${escapeHtml(target)}" placeholder="軽井沢・箱根・京都など" data-hotel-field="destination"></section><section class="hotel-section"><label>日程</label><div class="hotel-primary-grid"><label><small>チェックイン</small><input type="date" value="${escapeHtml(conditionValue('checkIn'))}" data-hotel-field="checkIn"></label><label><small>チェックアウト</small><input type="date" value="${escapeHtml(conditionValue('checkOut'))}" data-hotel-field="checkOut"></label></div></section><section class="hotel-section"><label>人数・部屋</label><div class="hotel-primary-grid"><label><small>大人</small><input type="number" min="1" value="${escapeHtml(conditionValue('adults',2))}" data-hotel-field="adults"></label><label><small>部屋</small><input type="number" min="1" value="${escapeHtml(conditionValue('rooms',1))}" data-hotel-field="rooms"></label></div></section><section class="hotel-section"><label>よく使う条件</label><div class="hotel-primary-grid"><label><small>駅から徒歩</small><div class="unit-input"><input type="number" min="0" placeholder="10" value="${escapeHtml(conditionValue('maxWalkingMinutes'))}" data-hotel-field="maxWalkingMinutes"><span>分以内</span></div></label><label><small>評価</small><div class="unit-input"><input type="number" min="0" max="5" step="0.1" placeholder="4.0" value="${escapeHtml(conditionValue('rating'))}" data-hotel-field="rating"><span>以上</span></div></label></div><div class="hotel-toggle-row">${booleanHotelButton('breakfastIncluded','朝食付き')}${booleanHotelButton('freeCancellation','キャンセル無料')}</div></section><details class="advanced-conditions hotel-more"><summary>その他の条件</summary><div class="hotel-toggle-row">${booleanHotelButton('nonsmoking','禁煙')}${booleanHotelButton('onsen','温泉')}${booleanHotelButton('publicBath','大浴場')}${booleanHotelButton('parking','駐車場')}</div><p>部屋タイプ・ベッド・広さ・現地払いなども追加できます。</p></details>${notificationBlock('hotel')}</div>`}
 
-function textPanel(form) {
-  const panel = form.querySelector('.composer-mode-panel');
-  if (!panel) return;
-  const model = composerRawModel(textarea(form)?.value || '');
-  panel.innerHTML = `<div class="text-mode-intro"><b>条件を文章でまとめて入力</b><small>例：冷蔵庫、500L以上、幅70cm以下、白かグレー、15万円以下</small>${model ? `<span class="text-category">${escapeHtml(categoryName(model))}として条件を整理します</span>` : ''}</div>`;
-  const assist = form.querySelector('.assist-label b');
-  if (assist) assist.textContent = '入力内容から追加できる条件';
-}
-function composerRawModel(raw){return String(raw||'').trim()?buildComposerModel(raw):null}
+function shoppingDomain(){return shoppingPrimaryFields[composerDraft.watch.domain]?composerDraft.watch.domain:null}
+function shoppingFieldInput(fieldId){const field=getDomainField(composerDraft.watch.domain,fieldId);if(!field)return'';const current=currentCondition(fieldId),value=conditionValue(fieldId,'');if(field.type==='boolean'){const negative=fieldId==='repairHistory';return`<button type="button" class="shopping-toggle ${current?'active':''}" data-shopping-field="${fieldId}" data-shopping-boolean="${negative?'false':'true'}">${escapeHtml(field.label)}${negative?'なし':''}</button>`}const numeric=['integer','number','duration','money','measurement'].includes(field.type);return`<label class="shopping-field"><small>${escapeHtml(field.label)}</small><div class="${field.unit?'unit-input':''}"><input ${numeric?'type="number"':'type="text"'} value="${escapeHtml(value)}" placeholder="指定なし" data-shopping-field="${fieldId}">${field.unit?`<span>${escapeHtml(field.unit)}</span>`:''}</div></label>`}
+function shoppingDirectEditor(){const subject=subjectText(),model=modelFor('shopping',subject),domain=shoppingDomain(),domainLabel=categoryName(model,domain),primary=domain?shoppingPrimaryFields[domain]:[],advanced=domain?shoppingAdvancedFields[domain]:[];return`<div class="shopping-direct-editor"><label class="mode-field"><b>探すもの</b><input class="mode-input" id="composer-subject" value="${escapeHtml(subject)}" placeholder="${labels.shopping.placeholder}"></label>${subject?`<div class="category-detected"><span>${escapeHtml(domainLabel)}</span><small>${domain?'商品に合う条件を表示中':'商品を入力すると条件を最適化します'}</small></div>`:''}${domain?`<section class="shopping-section"><div class="shopping-section-head"><b>よく使う条件</b><small>必要なものだけ入力</small></div><div class="shopping-primary-grid">${primary.map(shoppingFieldInput).join('')}</div></section><details class="advanced-conditions shopping-advanced"><summary>その他の条件</summary><div class="shopping-primary-grid">${advanced.map(shoppingFieldInput).join('')}</div></details>${notificationBlock('shopping')}`:`<div class="shopping-empty"><b>商品名を入力してください</b><small>商品カテゴリを判定して、サイズ・容量・寸法など必要な条件だけ表示します。</small></div>`}</div>`}
+function standardEditor(form){const panel=form.querySelector('.composer-panel');if(panel)panel.innerHTML=shoppingDirectEditor()}
+function renderEditor(form){const panel=form.querySelector('.composer-panel');if(!panel)return;if(activeDomain==='flight'){panel.innerHTML=flightIntentPanel(form);return}if(activeDomain==='hotel'){panel.innerHTML=hotelStayEditor();return}standardEditor(form)}
 
-function applyMode(form) {
-  form.classList.remove('composer-awaiting-mode', 'composer-mode-easy', 'composer-mode-builder', 'composer-mode-text');
-  if (!composerMode) {
-    form.classList.add('composer-awaiting-mode');
-    const panel = form.querySelector('.composer-mode-panel');
-    if (panel) panel.innerHTML = '<p class="mode-prompt">使いやすい入力方法を選んでください。あとから切り替えても入力内容は残ります。</p>';
-    return;
-  }
-  form.classList.add(`composer-mode-${composerMode}`);
-  if (composerMode === 'easy') easyPanel(form);
-  if (composerMode === 'builder') builderPanel(form);
-  if (composerMode === 'text') textPanel(form);
-}
+function textPreview(raw){const text=String(raw||'').trim();if(!text)return'入力すると解析結果を確認できます';const parsed=parseWatchQuery(text),count=(parsed?.domainConditions||parsed?.flightFilters||[]).length,triggers=(parsed?.triggers||[]).length;return`${labels[viewDomain(parsed?.domain||parsed?.type)]?.name||'Watch'}・条件 ${count}件・通知 ${triggers}件`}
+function renderTextHelper(form){const open=composerDraft.ui.textHelperOpen===true;form.classList.toggle('text-helper-open',open);const helper=form.querySelector('.composer-text-helper');if(!helper)return;helper.innerHTML=open?`<div class="text-helper-card"><div><b>文章から条件を作る</b><small>入力しただけでは現在の条件は変わりません。</small><span class="text-helper-preview">${escapeHtml(textPreview(textarea(form)?.value))}</span></div><div class="text-helper-actions"><button type="button" data-text-helper-cancel>キャンセル</button><button type="button" class="apply" data-text-helper-apply>この文章を反映</button></div></div>`:''}
+function renderShell(form){const shell=form.querySelector('.unified-composer');if(shell)shell.innerHTML=`<div class="unified-composer-head"><div><span>Watchを作る</span><b>何を探す？</b></div><button type="button" class="text-helper-trigger" data-text-helper-toggle>文章から条件を作る</button></div><div class="domain-selector">${domainButtons()}</div>`;renderTextHelper(form);renderEditor(form)}
+function rerenderFlight(form){publishFlightDraft(form);renderEditor(form)}
+function stayFromForm(form){const min=Number(form.querySelector('[data-flight-stay-min]')?.value),max=Number(form.querySelector('[data-flight-stay-max]')?.value);if(!Number.isFinite(min)&&!Number.isFinite(max))return undefined;const a=Number.isFinite(min)&&min>0?min:max,b=Number.isFinite(max)&&max>0?max:a;return{minNights:a,maxNights:b}}
+function handleFlightClick(form,event){if(composerDraft.watch.domain!=='flight')return false;const trip=event.target.closest('[data-flight-trip-pattern]');if(trip){updateFlight(form,{type:'set_trip_pattern',value:trip.dataset.flightTripPattern});rerenderFlight(form);return true}const cabin=event.target.closest('[data-flight-cabin-class]');if(cabin){updateFlight(form,{type:'set_cabin',value:{allowed:[cabin.dataset.flightCabinClass]}});rerenderFlight(form);return true}const preset=event.target.closest('[data-flight-filter-preset]');if(preset){const fieldId=preset.dataset.flightFilterPreset,current=flightFilter(fieldId);if(current)updateFlightFilter(form,{fieldId,remove:true});else if(fieldId==='nonstopOnly')updateFlightFilter(form,{fieldId,operator:'is_true',value:true,role:'required'});else if(fieldId==='allowedAirlines')updateFlightFilter(form,{fieldId,operator:'in',value:['ANA','JAL'],role:'preferred'});else if(fieldId==='departureTimeRange')updateFlightFilter(form,{fieldId,operator:'between',value:['00:00','11:59'],role:'preferred'});rerenderFlight(form);return true}const dateMode=event.target.closest('[data-flight-date-mode]');if(dateMode){composerDraft={...composerDraft,ui:{...composerDraft.ui,flightDateMode:dateMode.dataset.flightDateMode}};rerenderFlight(form);return true}const anywhere=event.target.closest('[data-flight-anywhere]');if(anywhere){updateFlight(form,{type:'set_place_mode',set:'destination',mode:'anywhere'});rerenderFlight(form);return true}const addPlace=event.target.closest('[data-flight-place-add]');if(addPlace){const set=addPlace.dataset.flightPlaceAdd,input=form.querySelector(`[data-flight-place-input="${set}"]`),label=input?.value.trim();if(label){updateFlight(form,{type:'add_place',set,place:{kind:'city',id:label,label}});rerenderFlight(form)}return true}const removeDestination=event.target.closest('[data-flight-destination-remove]');if(removeDestination){updateFlight(form,{type:'remove_place',set:'destination',index:Number(removeDestination.dataset.flightDestinationRemove)});rerenderFlight(form);return true}const removeOrigin=event.target.closest('[data-flight-origin-remove]');if(removeOrigin){updateFlight(form,{type:'remove_place',set:'origin',index:Number(removeOrigin.dataset.flightOriginRemove)});rerenderFlight(form);return true}const removeDate=event.target.closest('[data-flight-date-remove]');if(removeDate){updateFlight(form,{type:'remove_date_option',index:Number(removeDate.dataset.flightDateRemove)});rerenderFlight(form);return true}const addDate=event.target.closest('[data-flight-date-add]');if(addDate){const kind=addDate.dataset.flightDateAdd,stay=stayFromForm(form);let option;if(kind==='month'){const month=form.querySelector('[data-flight-month]')?.value;if(month){const[y,m]=month.split('-').map(Number);option={kind:'month',year:y,month:m,...(stay?{stayLength:stay}:{})}}}else if(kind==='range'){const startDate=form.querySelector('[data-flight-range-start]')?.value,endDate=form.querySelector('[data-flight-range-end]')?.value;if(startDate&&endDate)option={kind:'range',startDate,endDate,...(stay?{stayLength:stay}:{})}}else if(kind==='anytime')option={kind:'anytime',...(stay?{stayLength:stay}:{})};else{const outboundDate=form.querySelector('[data-flight-outbound]')?.value,returnDate=form.querySelector('[data-flight-return]')?.value;if(outboundDate)option={kind:'exact',outboundDate,...(returnDate?{returnDate}:{})}}if(option){updateFlight(form,{type:'add_date_option',option});rerenderFlight(form)}return true}return false}
+function handleHotelClick(form,event){if(activeDomain!=='hotel')return false;const button=event.target.closest('[data-hotel-boolean="true"]');if(!button)return false;const fieldId=button.dataset.hotelField;if(currentCondition(fieldId))removeCondition(fieldId,form);else setCondition(fieldId,true,form);renderEditor(form);return true}
+function handleHotelChange(form,target){if(activeDomain!=='hotel'||!target.matches('[data-hotel-field]')||target.dataset.hotelBoolean)return false;const fieldId=target.dataset.hotelField,field=getDomainField('hotel',fieldId);if(!field)return false;let value=target.value;if(value===''){removeCondition(fieldId,form);renderEditor(form);return true}if(['integer','number','duration','money','measurement'].includes(field.type))value=Number(value);setCondition(fieldId,value,form);renderEditor(form);return true}
+function parseShoppingValue(field,value){if(['integer','number','duration','money','measurement'].includes(field.type))return Number(value);if((shoppingOperators[field.id]==='in'||field.type==='list')&&typeof value==='string')return value.split(/[、,]/).map((item)=>item.trim()).filter(Boolean);return value}
+function handleShoppingClick(form,event){if(activeDomain!=='shopping')return false;const button=event.target.closest('[data-shopping-boolean]');if(!button)return false;const fieldId=button.dataset.shoppingField;if(currentCondition(fieldId))removeCondition(fieldId,form);else{const value=button.dataset.shoppingBoolean!=='false';setCondition(fieldId,value,form,'required',value?'is_true':'is_false')}renderEditor(form);return true}
+function handleShoppingChange(form,target){if(activeDomain!=='shopping'||!target.matches('[data-shopping-field]')||target.dataset.shoppingBoolean)return false;const fieldId=target.dataset.shoppingField,field=getDomainField(composerDraft.watch.domain,fieldId);if(!field)return false;if(target.value===''){removeCondition(fieldId,form);renderEditor(form);return true}setCondition(fieldId,parseShoppingValue(field,target.value),form,'required',shoppingOperators[fieldId]);renderEditor(form);return true}
+function handleNotificationClick(form,event){const button=event.target.closest('[data-notify-trigger]');if(!button)return false;const kind=button.dataset.notifyTrigger;if(kind==='availability'){findTrigger('availability')?removeTrigger('availability',form):setTrigger({id:'composer-availability',metric:'availability',operator:'eq',value:true,role:'notification'},form)}else if(kind==='award'){findTrigger('availability','award')?removeTrigger('availability',form,'award'):setTrigger({id:'composer-award',metric:'availability',scope:'award',operator:'eq',value:true,role:'notification'},form)}else if(kind==='price_drop_percent'){findTrigger('price_drop_percent')?removeTrigger('price_drop_percent',form):setTrigger({id:'composer-price-drop',metric:'price_drop_percent',operator:'gte',value:1,role:'notification'},form)}else if(kind==='watch_low'){findTrigger('price','','watch_low')?removeTrigger('price',form,'','watch_low'):setTrigger({id:'composer-watch-low',metric:'price',operator:'lte',reference:'watch_low',role:'notification'},form)}renderEditor(form);return true}
+function handleNotificationChange(form,target){if(!target.matches('[data-notify-price]'))return false;const value=Number(target.value);if(!target.value)removeTrigger('price',form);else if(Number.isFinite(value))setTrigger({id:'composer-price-target',metric:'price',operator:'lte',value,unit:'JPY',role:'notification'},form);renderEditor(form);return true}
 
-function enhance(form) {
-  if (form.dataset.modesEnhanced) return;
-  form.dataset.modesEnhanced = 'true';
-  const input = textarea(form);
-  if (!input) return;
-  hydrateFromRaw(input.value);
-
-  const picker = document.createElement('section');
-  picker.className = 'composer-mode-picker';
-  picker.innerHTML = `
-    <div class="mode-picker-head"><b>Watchの作り方</b><span>いつでも切り替えOK</span></div>
-    <div class="mode-cards">
-      <button type="button" data-composer-mode="easy"><span class="mode-icon">①</span><b>かんたん</b><small>質問に答えるだけ</small></button>
-      <button type="button" data-composer-mode="builder"><span class="mode-icon">＋</span><b>組み立て</b><small>条件を細かく選ぶ</small></button>
-      <button type="button" data-composer-mode="text"><span class="mode-icon">✎</span><b>文章で入力</b><small>まとめて一気に</small></button>
-    </div>`;
-  form.insertBefore(picker, input);
-  const panel = document.createElement('div');
-  panel.className = 'composer-mode-panel';
-  form.insertBefore(panel, input);
-
-  form.addEventListener('click', (event) => {
-    const modeButton = event.target.closest('[data-composer-mode]');
-    if (modeButton) {
-      hydrateFromRaw(textarea(form)?.value || '');
-      composerMode = modeButton.dataset.composerMode;
-      localStorage.setItem(MODE_KEY, composerMode);
-      form.querySelectorAll('[data-composer-mode]').forEach((button) => button.classList.toggle('active', button.dataset.composerMode === composerMode));
-      applyMode(form); return;
-    }
-    const easyTypeButton = event.target.closest('[data-easy-type]');
-    if (easyTypeButton) { easyType=easyTypeButton.dataset.easyType; easyPhrases=[]; commitRaw(form,buildRaw(easyType,easySubject,easyPhrases)); easyPanel(form); return; }
-    const easyOption = event.target.closest('[data-easy-option]');
-    if (easyOption) { const item=easyOption.dataset.easyOption; easyPhrases=easyPhrases.includes(item)?easyPhrases.filter((v)=>v!==item):[...easyPhrases,item]; commitRaw(form,buildRaw(easyType,easySubject,easyPhrases)); easyPanel(form); return; }
-    const builderTypeButton = event.target.closest('[data-builder-type]');
-    if (builderTypeButton) { builderType=builderTypeButton.dataset.builderType; builderPhrases=[]; builderGroup='common'; builderAttribute='price'; commitRaw(form,buildRaw(builderType,builderSubject,builderPhrases)); builderPanel(form); return; }
-    const attr = event.target.closest('[data-builder-attribute]');
-    if (attr) { builderGroup=attr.dataset.builderGroup||'common'; builderAttribute=attr.dataset.builderAttribute; builderPanel(form); return; }
-    const builderOption = event.target.closest('[data-builder-option]');
-    if (builderOption) { const item=builderOption.dataset.builderOption; builderPhrases=builderPhrases.includes(item)?builderPhrases.filter((v)=>v!==item):[...builderPhrases,item]; commitRaw(form,buildRaw(builderType,builderSubject,builderPhrases)); builderPanel(form); }
-  });
-
-  form.addEventListener('input', (event) => {
-    if (event.target.id === 'easy-subject') { easySubject=event.target.value; commitRaw(form,buildRaw(easyType,easySubject,easyPhrases)); easyPanel(form); }
-    if (event.target.id === 'builder-subject') { builderSubject=event.target.value; commitRaw(form,buildRaw(builderType,builderSubject,builderPhrases)); builderPanel(form); }
-    if (event.target.id === 'query' && composerMode === 'text') textPanel(form);
-  });
-  form.querySelectorAll('[data-composer-mode]').forEach((button) => button.classList.toggle('active', button.dataset.composerMode === composerMode));
-  applyMode(form);
-}
-function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
-function scan() { const form=document.querySelector('#watch-form'); if(form)enhance(form); }
-new MutationObserver(scan).observe(document.querySelector('#app'), { childList: true, subtree: true });
-scan();
+function enhance(form){if(form.dataset.modesEnhanced)return;form.dataset.modesEnhanced='true';const input=textarea(form);if(!input)return;hydrateFromRaw(input.value,form);const shell=document.createElement('section');shell.className='unified-composer';form.insertBefore(shell,input);const helper=document.createElement('div');helper.className='composer-text-helper';form.insertBefore(helper,input);const panel=document.createElement('div');panel.className='composer-panel';form.insertBefore(panel,input);form.addEventListener('submit',()=>{form.dataset.submitStructured='true'},true);form.addEventListener('click',(event)=>{if(handleFlightClick(form,event)||handleHotelClick(form,event)||handleShoppingClick(form,event)||handleNotificationClick(form,event))return;const domainButton=event.target.closest('[data-composer-domain]');if(domainButton){activeDomain=domainButton.dataset.composerDomain;composerDraft=switchComposerDomain(composerDraft,activeDomain==='shopping'?'shopping':activeDomain);if(activeDomain==='flight')applyRaw(form,'航空券');else if(activeDomain==='hotel')applyRaw(form,'ホテル');else{input.value='';composerDraft={...composerDraft,watch:{...composerDraft.watch,target:{title:''},metadata:{...composerDraft.watch.metadata,rawQuery:''}}};publishDraft(form)}renderShell(form);return}if(event.target.closest('[data-text-helper-toggle]')){composerDraft={...composerDraft,ui:{...composerDraft.ui,textHelperOpen:!composerDraft.ui.textHelperOpen}};if(composerDraft.ui.textHelperOpen&&!input.value)input.value=draftRaw();renderTextHelper(form);return}if(event.target.closest('[data-text-helper-cancel]')){input.value=draftRaw();composerDraft={...composerDraft,ui:{...composerDraft.ui,textHelperOpen:false}};renderTextHelper(form);return}if(event.target.closest('[data-text-helper-apply]')){if(parseAndApply(form,input.value)){composerDraft={...composerDraft,ui:{...composerDraft.ui,textHelperOpen:false}};renderShell(form)}return}});form.addEventListener('change',(event)=>{if(handleHotelChange(form,event.target)||handleShoppingChange(form,event.target)||handleNotificationChange(form,event.target))return});form.addEventListener('input',(event)=>{form.dataset.submitStructured='false';if(event.target.id==='composer-subject'){applyRaw(form,buildRaw(activeDomain,event.target.value));renderEditor(form);return}if(event.target.id==='query'&&composerDraft.ui.textHelperOpen){renderTextHelper(form)}});renderShell(form);publishDraft(form)}
+function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,(char)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
+function scan(){const form=document.querySelector('#watch-form');if(form)enhance(form)}
+new MutationObserver(scan).observe(document.querySelector('#app'),{childList:true,subtree:true});scan();

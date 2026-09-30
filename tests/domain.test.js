@@ -12,9 +12,14 @@ test('parses shopping price, size and color without inventing conditions', () =>
   assert.equal(draft.conditions.directOnly, undefined);
 });
 
-test('parses flight intent into a flight watch', () => {
+test('parses flight intent into a v4 flight watch while retaining readable legacy fields', () => {
   const draft = parseWatchQuery('東京からホノルル、直行便、往復10万円以下');
   assert.equal(draft.type, 'flight');
+  assert.equal(draft.schemaVersion, 4);
+  assert.equal(draft.travelIntent.originSet.places[0].label, '東京');
+  assert.equal(draft.travelIntent.destinationSet.places[0].label, 'ホノルル');
+  assert.equal(draft.travelIntent.tripPattern, 'round_trip');
+  assert.ok(draft.flightFilters.some((f)=>f.fieldId==='nonstopOnly'));
   assert.equal(draft.conditions.origin, '東京');
   assert.equal(draft.conditions.destination, 'ホノルル');
   assert.equal(draft.conditions.maxPrice, 100000);

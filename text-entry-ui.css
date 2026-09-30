@@ -1,0 +1,6 @@
+.text-helper-trigger.text-entry-cta{display:none!important}
+.quick-text-entry{display:grid;gap:12px;padding:16px;border:1px solid #d7ded8;border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(34,37,31,.06)}
+.quick-text-entry label{display:grid;gap:9px}.quick-text-entry label>b{font-size:18px;line-height:1.3;letter-spacing:-.02em}.quick-text-entry textarea{width:100%;min-height:104px;resize:vertical;border:2px solid #9fb4a6;border-radius:14px;background:#fffdf8;color:var(--ink);padding:14px 15px;font:inherit;font-size:16px;line-height:1.5;box-sizing:border-box}.quick-text-entry textarea::placeholder{color:#8b928d}.quick-text-entry textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(53,95,74,.12)}
+.quick-text-entry>button{width:100%;min-height:50px;border:0;border-radius:13px;background:var(--accent);color:#fff;font:inherit;font-size:15px;font-weight:800;letter-spacing:.01em}.quick-text-entry>button:active{transform:translateY(1px)}
+.domain-selector{margin-top:6px;opacity:.9}.unified-composer-head{margin-bottom:10px}.unified-composer-head .text-helper-trigger{display:none!important}
+@media(max-width:370px){.quick-text-entry{padding:14px}.quick-text-entry label>b{font-size:17px}.quick-text-entry textarea{min-height:104px;padding:13px 14px}.quick-text-entry>button{min-height:48px}}

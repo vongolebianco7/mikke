@@ -12,9 +12,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
       - name: Syntax check
         run: |
           node --check src/app.js
+          node --check src/domain/composerController.js
+          node --check src/canonicalComposerUi.js
           node --check src/domain/parseWatch.js
           node --check src/domain/evaluate.js
           node --check src/domain/providerAttribution.js
@@ -28,6 +32,10 @@ jobs:
           node --check src/server/shoppingProviders.js
           node --check api/shopping-search.js
       - name: Unit tests
+        run: npm run test:unit
+      - name: Integration tests
+        run: npm run test:integration
+      - name: Full system regression suite
         run: npm test
 
   security:
