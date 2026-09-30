@@ -50,10 +50,16 @@ export function evaluateCondition(condition={},facts={}){
 }
 
 function evaluateCollection(conditions=[],facts={}){
-  const outcomes=conditions.map((condition)=>({condition,...evaluateCondition(condition,facts)})),required=outcomes.filter(o=>o.condition.role==='required'),preferred=outcomes.filter(o=>o.condition.role!=='required');
+  const outcomes=conditions.map((condition)=>({condition,...evaluateCondition(condition,facts)}));
+  const required=outcomes.filter(o=>o.condition.role==='required');
+  const preferred=outcomes.filter(o=>o.condition.role==='preferred'||!o.condition.role);
+  const comparison=outcomes.filter(o=>o.condition.role==='comparison');
+  const notification=outcomes.filter(o=>o.condition.role==='notification');
   const idOf=(o)=>o.condition.id||conditionKey(o.condition);
-  const failedRequired=required.filter(o=>o.state==='fail').map(idOf),unknownRequired=required.filter(o=>o.state==='unknown').map(idOf),unsupportedRequired=required.filter(o=>o.state==='unsupported').map(idOf),requiredPassed=required.filter(o=>o.state==='pass').length,preferredPassed=preferred.filter(o=>o.state==='pass').length,totalWeight=required.length*2+preferred.length,passedWeight=requiredPassed*2+preferredPassed,score=totalWeight===0?50:Math.round((passedWeight/totalWeight)*100);
-  return{requiredMatch:failedRequired.length===0&&unknownRequired.length===0&&unsupportedRequired.length===0,requiredPassed,preferredPassed,failedRequired,unknownRequired,unsupportedRequired,score,outcomes};
+  const failedRequired=required.filter(o=>o.state==='fail').map(idOf),unknownRequired=required.filter(o=>o.state==='unknown').map(idOf),unsupportedRequired=required.filter(o=>o.state==='unsupported').map(idOf);
+  const requiredPassed=required.filter(o=>o.state==='pass').length,preferredPassed=preferred.filter(o=>o.state==='pass').length,comparisonPassed=comparison.filter(o=>o.state==='pass').length,notificationPassed=notification.filter(o=>o.state==='pass').length;
+  const totalWeight=required.length*2+preferred.length+comparison.length,passedWeight=requiredPassed*2+preferredPassed+comparisonPassed,score=totalWeight===0?50:Math.round((passedWeight/totalWeight)*100);
+  return{requiredMatch:failedRequired.length===0&&unknownRequired.length===0&&unsupportedRequired.length===0,requiredPassed,preferredPassed,comparisonPassed,notificationPassed,failedRequired,unknownRequired,unsupportedRequired,score,outcomes};
 }
 export function evaluateGenericConditions(conditions=[],facts={}){return evaluateCollection(conditions,facts)}
 export function evaluateDomainConditions(conditions=[],facts={}){return evaluateCollection(conditions,facts)}
