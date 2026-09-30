@@ -4,6 +4,7 @@ import { parseGenericConditionClauses } from '../src/domain/parseGenericConditio
 import { parseWatchQuery } from '../src/domain/parseWatch.js';
 
 const byField=(r,id)=>r.domainConditions.find((c)=>c.fieldId===id);
+const allByField=(r,id)=>r.domainConditions.filter((c)=>c.fieldId===id);
 
 test('fashion product parser exposes canonical v3 domain conditions',()=>{
   const r=parseGenericConditionClauses('New Balance 996、24.5cm、グレー、新品、1万円以下になったら');
@@ -46,6 +47,26 @@ test('expanded shopping categories preserve their inferred domain in the structu
     assert.equal(parsed.domain,domain,`${text} should stay ${domain}`);
     assert.ok(byField(parsed,'price'),`${domain} should keep common price condition`);
   }
+});
+
+test('cross-category exclusion wording becomes required title exclusions',()=>{
+  const cases=[
+    ['メンズシャツ、半袖除外、バンドカラー不可',['半袖','バンドカラー']],
+    ['秋冬カーディガン、ウール除外',['ウール']],
+    ['ベビー用品、3000円以下、スタイ不要',['スタイ']],
+    ['アーセナル ユニフォーム、GK不可、中古不可、1万円以下',['GK']],
+  ];
+  for(const [text,excluded] of cases){
+    const parsed=parseGenericConditionClauses(text);
+    const exclusions=allByField(parsed,'title').filter((c)=>c.operator==='not_contains_text');
+    assert.deepEqual(exclusions.map((c)=>c.value),excluded,`${text} should preserve exclusions`);
+    assert.ok(exclusions.every((c)=>c.role==='required'));
+  }
+});
+
+test('negative words inside product subject are not treated as exclusions without exclusion syntax',()=>{
+  const parsed=parseGenericConditionClauses('ウール混カーディガン、1万円以下');
+  assert.equal(allByField(parsed,'title').some((c)=>c.operator==='not_contains_text'),false);
 });
 
 test('parseWatchQuery creates schemaVersion 3 shopping Watches while retaining v2 compatibility fields',()=>{
