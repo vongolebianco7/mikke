@@ -5,6 +5,7 @@ import { getDomainField } from '../src/domain/domainSchemas.js';
 
 const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const modes = readFileSync(new URL('../src/composerModes.js', import.meta.url), 'utf8');
+const canonical = readFileSync(new URL('../src/canonicalComposerUi.js', import.meta.url), 'utf8');
 const flightUi = readFileSync(new URL('../src/flightWatchUi.js', import.meta.url), 'utf8');
 const flightDisplay = readFileSync(new URL('../src/domain/flightDisplay.js', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -71,9 +72,8 @@ test('Watch composer is one domain-aware flow instead of three input modes', () 
   assert.doesNotMatch(modes, /data-composer-mode/);
   assert.doesNotMatch(modes, /\bcomposerMode\b/);
   assert.doesNotMatch(modeCss, /mode-cards/);
-  assert.match(modes, /何を探す？/);
-  assert.match(modes, /文章から条件を作る/);
-  assert.match(modes, /data-composer-domain/);
+  assert.match(canonical, /何を探していますか？/);
+  assert.match(canonical, /data-canonical-domain/);
   assert.match(modeCss, /unified-composer/);
 });
 
@@ -141,14 +141,18 @@ test('travel composer keeps advanced conditions progressively disclosed on mobil
 });
 
 test('submit parser can recover the live structured composer draft without reparsing display text', () => {
-  assert.match(modes, /form\._mikkeDraft/);
+  assert.match(canonical, /form\._mikkeDraft/);
+  assert.match(canonical, /submitStructured='true'/);
   assert.match(parseWatch, /getComposerDraftOverride/);
   assert.match(draftBridge, /form\?\._mikkeDraft/);
   assert.match(draftBridge, /structuredClone\(form\._mikkeDraft\)/);
 });
 
-test('text entry has a dedicated promotion layer loaded alongside the unified composer', () => {
-  assert.match(modes, /data-text-helper-toggle/);
-  assert.match(index, /text-entry-ui\.css/);
-  assert.match(index, /textEntryUi\.js/);
+test('primary text entry is canonical and the old promotion relay is not loaded', () => {
+  assert.match(index, /canonical-composer\.css/);
+  assert.match(index, /canonicalComposerUi\.js/);
+  assert.doesNotMatch(index, /text-entry-ui\.css/);
+  assert.doesNotMatch(index, /textEntryUi\.js/);
+  assert.match(canonical, /data-composer-text/);
+  assert.match(canonical, /controller\.applyText/);
 });
