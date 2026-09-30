@@ -1,3 +1,5 @@
+import { normalizeCompatibilityCondition } from './compatibilityEngine.js';
+
 const CONDITION_ROLES = new Set(['required', 'preferred', 'notification', 'comparison']);
 const CONDITION_SOURCES = new Set(['common', 'category', 'subcategory', 'custom']);
 
@@ -57,6 +59,7 @@ export function normalizeDomainWatch(watch = {}) {
     domain: watch.domain,
     target: watch.target && typeof watch.target === 'object' && !Array.isArray(watch.target) ? { ...watch.target } : {},
     domainConditions: Array.isArray(watch.domainConditions) ? watch.domainConditions.map(normalizeDomainCondition) : [],
+    compatibilityConditions: Array.isArray(watch.compatibilityConditions) ? watch.compatibilityConditions.map(normalizeCompatibilityCondition) : [],
     triggers: Array.isArray(watch.triggers) ? watch.triggers.map(normalizeTrigger) : [],
     metadata: watch.metadata && typeof watch.metadata === 'object' && !Array.isArray(watch.metadata) ? { ...watch.metadata } : {},
   };
