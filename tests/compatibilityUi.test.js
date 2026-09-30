@@ -5,14 +5,19 @@ import { compatibilityEvidenceLabel } from '../src/domain/resultEvidence.js';
 import { parseWatchQuery } from '../src/domain/parseWatch.js';
 import { normalizeWatch } from '../src/domain/normalizeWatch.js';
 
-const composer = readFileSync(new URL('../src/canonicalComposerUi.js', import.meta.url), 'utf8');
-const css = readFileSync(new URL('../canonical-composer.css', import.meta.url), 'utf8');
+const compatibilityUi = readFileSync(new URL('../src/compatibilityComposerUi.js', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../compatibility-composer.css', import.meta.url), 'utf8');
+const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 test('composer renders compatibility conditions in a dedicated fit section', () => {
-  assert.match(composer, /適合条件/);
-  assert.match(composer, /data-canonical-compatibility/);
-  assert.match(composer, /compatibilityConditions/);
+  assert.match(compatibilityUi, /適合条件/);
+  assert.match(compatibilityUi, /data-canonical-compatibility/);
+  assert.match(compatibilityUi, /compatibilityConditions/);
+  assert.match(compatibilityUi, /data-compatibility-role/);
+  assert.match(compatibilityUi, /data-compatibility-remove/);
   assert.match(css, /canonical-compatibility/);
+  assert.match(index, /compatibilityComposerUi\.js/);
+  assert.match(index, /compatibility-composer\.css/);
 });
 
 test('compatibility evidence has explicit Japanese labels for all four states', () => {
