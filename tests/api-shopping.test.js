@@ -25,6 +25,28 @@ test('shopping API validates a shopping watch before provider access', async () 
   assert.equal(res.payload.error, 'invalid_watch');
 });
 
+test('shopping API rejects pathological structured conditions before provider access', async () => {
+  const res = responseRecorder();
+  let calls = 0;
+  const deep = {};
+  let cursor = deep;
+  for (let i = 0; i < 12; i += 1) {
+    cursor.next = {};
+    cursor = cursor.next;
+  }
+
+  await handler({
+    method: 'POST', headers: { 'x-forwarded-for': '203.0.113.12' },
+    body: { watch: { type: 'shopping', rawQuery: 'test', conditions: deep } },
+  }, res, {
+    searchProviders: async () => { calls += 1; return { items: [], providers: [] }; },
+  });
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.payload.error, 'invalid_watch');
+  assert.equal(calls, 0);
+});
+
 test('shopping API never exposes provider credentials in its response', async () => {
   const res = responseRecorder();
   await handler({
@@ -53,4 +75,27 @@ test('rate-limited shopping request returns 429 and never calls upstream provide
   assert.equal(res.headers['Retry-After'], '7');
   assert.equal(res.payload.error, 'rate_limited');
   assert.equal(calls, 0);
+});
+
+test('unexpected server failure becomes controlled 500 and sanitized telemetry', async () => {
+  const res = responseRecorder();
+  const events = [];
+  const logger = { api: (event) => events.push(event), provider: () => {} };
+  const rawQuery = 'private search phrase';
+
+  await handler({
+    method: 'POST', headers: { 'x-forwarded-for': '203.0.113.13' },
+    body: { watch: { type: 'shopping', rawQuery, conditions: {} } },
+  }, res, {
+    logger,
+    searchProviders: async () => { throw new Error('secret-stack-value'); },
+  });
+
+  assert.equal(res.statusCode, 500);
+  assert.deepEqual(res.payload, { error: 'internal_error' });
+  assert.equal(JSON.stringify(res.payload).includes('secret-stack-value'), false);
+  assert.equal(JSON.stringify(events).includes(rawQuery), false);
+  assert.equal(events.at(-1).route, '/api/shopping-search');
+  assert.equal(events.at(-1).outcome, 'server_error');
+  assert.equal(events.at(-1).statusCode, 500);
 });
