@@ -148,11 +148,12 @@ test('submit parser can recover the live structured composer draft without repar
   assert.match(draftBridge, /structuredClone\(form\._mikkeDraft\)/);
 });
 
-test('primary text entry is canonical and the old promotion relay is not loaded', () => {
+test('primary text entry is canonical and no legacy composer runtime is loaded beside it', () => {
   assert.match(index, /canonical-composer\.css/);
   assert.match(index, /canonicalComposerUi\.js/);
   assert.doesNotMatch(index, /text-entry-ui\.css/);
   assert.doesNotMatch(index, /textEntryUi\.js/);
+  assert.doesNotMatch(index, /src\/composerModes\.js/);
   assert.match(canonical, /data-composer-text/);
   assert.match(canonical, /controller\.applyText/);
 });
