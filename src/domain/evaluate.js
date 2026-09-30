@@ -1,6 +1,7 @@
 import { factsFromCandidate } from './candidateFacts.js';
 import { evaluateGenericConditions, evaluateDomainConditions } from './conditionEngine.js';
 import { evaluateFlightTravelIntent } from './flightIntentEvaluation.js';
+import { evaluateCompatibilityConditions } from './compatibilityEngine.js';
 
 function normalizeColor(value = '') {
   return value.replace('灰色', 'グレー').toLowerCase();
@@ -67,13 +68,38 @@ function combinedFlightEvaluation(intentResult, filterResult) {
   return shapeEvaluation({requiredMatch:failedRequired.length===0&&unknownRequired.length===0&&unsupportedRequired.length===0,score,outcomes,failedRequired,unknownRequired,unsupportedRequired});
 }
 
-export function evaluateCandidate(watch, candidate) {
-  const facts = factsFromCandidate(candidate);
-  if(watch?.domain==='flight'&&watch?.schemaVersion===4&&watch.travelIntent){
-    const intentResult=evaluateFlightTravelIntent(watch.travelIntent,candidate?.itinerary||{});
-    const filterResult=evaluateDomainConditions(Array.isArray(watch.flightFilters)?watch.flightFilters:[],facts);
-    return combinedFlightEvaluation(intentResult,filterResult);
+function compatibilityScore(result) {
+  const ranked=result.outcomes.filter(({condition})=>condition.role==='required'||condition.role==='preferred'||condition.role==='comparison');
+  if(!ranked.length) return null;
+  let total=0,passed=0;
+  for(const outcome of ranked){
+    const weight=outcome.condition.role==='required'?2:1;
+    total+=weight;
+    if(outcome.state==='compatible') passed+=weight;
   }
+  return total?Math.round((passed/total)*100):null;
+}
+
+function combineCompatibility(base,watch,candidate) {
+  const conditions=Array.isArray(watch?.compatibilityConditions)?watch.compatibilityConditions:[];
+  if(!conditions.length) return base;
+  const compatibility=evaluateCompatibilityConditions(conditions,candidate?.compatibilityEvidence||{});
+  const compatScore=compatibilityScore(compatibility);
+  const score=compatScore===null?base.score:Math.round((base.score+compatScore)/2);
+  const requiredMatch=base.requiredMatch&&compatibility.requiredMatch;
+  return {
+    ...base,
+    requiredMatch,
+    score,
+    nearMatch:false,
+    compatibilityOutcomes:compatibility.outcomes,
+    failedCompatibilityRequired:compatibility.incompatibleRequired,
+    unknownCompatibilityRequired:compatibility.unknownRequired,
+    unsupportedCompatibilityRequired:compatibility.unsupportedRequired,
+  };
+}
+
+function baseCandidateEvaluation(watch,candidate,facts) {
   if (Array.isArray(watch.domainConditions) && watch.domainConditions.length) {
     return shapeEvaluation(evaluateDomainConditions(watch.domainConditions, facts));
   }
@@ -93,6 +119,16 @@ export function evaluateCandidate(watch, candidate) {
   const failedRequired = requiredResults.filter(([, ok]) => !ok).map(([key]) => key);
   const nearMatch = !requiredMatch && failedRequired.length === 1 && score >= 60;
   return { requiredMatch, score, reasons, outcomes: [], nearMatch, failedRequired, unknownRequired: [], unsupportedRequired: [] };
+}
+
+export function evaluateCandidate(watch, candidate) {
+  const facts = factsFromCandidate(candidate);
+  if(watch?.domain==='flight'&&watch?.schemaVersion===4&&watch.travelIntent){
+    const intentResult=evaluateFlightTravelIntent(watch.travelIntent,candidate?.itinerary||{});
+    const filterResult=evaluateDomainConditions(Array.isArray(watch.flightFilters)?watch.flightFilters:[],facts);
+    return combinedFlightEvaluation(intentResult,filterResult);
+  }
+  return combineCompatibility(baseCandidateEvaluation(watch,candidate,facts),watch,candidate);
 }
 
 function numeric(value) {
