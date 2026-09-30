@@ -5,13 +5,30 @@ const COMPATIBILITY_LABELS={
   unknown:'適合未確認',
   unsupported:'このデータ元では適合判定不可',
 };
+const COMPATIBILITY_TONES={
+  compatible:'positive',
+  incompatible:'negative',
+  unknown:'caution',
+  unsupported:'neutral',
+};
 
 export function compatibilityEvidenceLabel(state){
   return COMPATIBILITY_LABELS[state]||'適合状態不明';
 }
 
+export function summarizeCompatibilityResult(outcome={}){
+  const status=Object.hasOwn(COMPATIBILITY_LABELS,outcome?.state)?outcome.state:'unknown';
+  return {
+    status,
+    label:compatibilityEvidenceLabel(status),
+    tone:COMPATIBILITY_TONES[status],
+    conditionId:outcome?.condition?.id||'',
+    role:outcome?.condition?.role||'required',
+  };
+}
+
 export function summarizeEvidenceState(evaluation={}){
-  return (evaluation.outcomes||[])
+  const ordinary=(evaluation.outcomes||[])
     .map((outcome)=>{
       const evidenceState=outcome?.evidence?.state;
       const status=outcome?.state==='unsupported'||evidenceState==='unsupported'
@@ -28,10 +45,25 @@ export function summarizeEvidenceState(evaluation={}){
       };
     })
     .filter(Boolean);
+  const compatibility=(evaluation.compatibilityOutcomes||[]).map((outcome)=>{
+    const summary=summarizeCompatibilityResult(outcome);
+    return {
+      fieldId:summary.conditionId,
+      role:summary.role,
+      status:summary.status,
+      label:summary.label,
+      tone:summary.tone,
+      kind:'compatibility',
+    };
+  });
+  return [...compatibility,...ordinary];
 }
 
 export function resultStatusLabel(evaluation={}){
   if(evaluation.requiredMatch)return '条件に一致';
+  if((evaluation.failedCompatibilityRequired||[]).length)return '必須の適合条件に非対応';
+  if((evaluation.unsupportedCompatibilityRequired||[]).length)return '必須の適合条件を判定できません';
+  if((evaluation.unknownCompatibilityRequired||[]).length)return '必須の適合条件を未確認';
   const evidence=summarizeEvidenceState(evaluation);
   if(evidence.some((item)=>item.role==='required'&&item.status==='unsupported'))return '必須条件を判定できません';
   if(evidence.some((item)=>item.role==='required'&&item.status==='unknown'))return '必須条件を未確認';
