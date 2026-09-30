@@ -50,13 +50,15 @@ test('representative product domains expose compatibility semantics',()=>{
   assert.deepEqual(getCompatibilitySemantics('appliance','refrigerator').map(x=>x.conceptId),['installation_space']);
 });
 
-test('domain watches persist normalized compatibility conditions separately from field conditions',()=>{
+test('domain watches normalize compatibility conditions separately from field conditions',()=>{
   const watch=normalizeDomainWatch({
     domain:'electronics',
     domainConditions:[{fieldId:'price',operator:'lte',value:10000,unit:'JPY',role:'notification'}],
-    compatibilityConditions:[{id:'phone-fit',relation:'compatible_with',target:{type:'device',model:'iPhone 17 Pro'},role:'required'}],
+    compatibilityConditions:[{id:'phone-fit',relation:'not-a-relation',target:{type:'device',model:'iPhone 17 Pro'},role:'not-a-role'}],
   });
   assert.equal(watch.domainConditions.length,1);
   assert.equal(watch.compatibilityConditions.length,1);
   assert.equal(watch.compatibilityConditions[0].target.model,'iPhone 17 Pro');
+  assert.equal(watch.compatibilityConditions[0].relation,'compatible_with');
+  assert.equal(watch.compatibilityConditions[0].role,'required');
 });
