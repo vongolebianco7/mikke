@@ -1,4 +1,14 @@
 const LABELS={unsupported:'このデータ元では判定不可',unknown:'未確認'};
+const COMPATIBILITY_LABELS={
+  compatible:'対応確認済み',
+  incompatible:'非対応',
+  unknown:'適合未確認',
+  unsupported:'このデータ元では適合判定不可',
+};
+
+export function compatibilityEvidenceLabel(state){
+  return COMPATIBILITY_LABELS[state]||'適合状態不明';
+}
 
 export function summarizeEvidenceState(evaluation={}){
   return (evaluation.outcomes||[])
