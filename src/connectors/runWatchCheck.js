@@ -6,7 +6,7 @@ import { groupProducts } from '../domain/groupProducts.js';
 import { searchSampleShopping } from './sampleShopping.js';
 import { searchOfficialShopping } from './officialShopping.js';
 
-const PRODUCT_DOMAINS=new Set(['fashion','appliance','furniture','food','used_car']);
+const PRODUCT_DOMAINS=new Set(['fashion','appliance','furniture','food','used_car','baby','sports','electronics','daily_goods','beauty','pet','hobby']);
 function isShoppingWatch(watch){return watch?.type==='shopping'||PRODUCT_DOMAINS.has(watch?.domain)}
 
 function splitHistoryEntry(entry) {
