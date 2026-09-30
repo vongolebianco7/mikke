@@ -12,7 +12,7 @@ test('shopping check returns evaluated candidates sorted by score then price', a
 });
 
 test('v3 product domains use the approved shopping connector path', async () => {
-  for (const domain of ['fashion','appliance','furniture','food','used_car']) {
+  for (const domain of ['fashion','appliance','furniture','food','used_car','baby','sports','electronics','daily_goods','beauty','pet','hobby']) {
     let calls=0;
     const watch={id:`w-${domain}`,schemaVersion:3,domain,title:domain,rawQuery:domain,domainConditions:[],triggers:[]};
     const fetchImpl=async()=>{calls+=1;return{ok:true,json:async()=>({items:[{id:`${domain}:1`,title:domain,price:1000,available:true,attributes:{}}],providers:[{name:'test',status:'ok'}]})}};

@@ -2,7 +2,7 @@ import { inferProductCategory } from './categoryTemplates.js';
 import { normalizeCondition, normalizeDomainCondition, normalizeTrigger } from './watchSchema.js';
 
 const COLOR_MAP={'グレー':'gray','灰色':'gray','白':'white','ホワイト':'white','黒':'black','ブラック':'black','ベージュ':'beige','ネイビー':'navy','青':'blue','ブルー':'blue','赤':'red','レッド':'red'};
-const DOMAIN_BY_CATEGORY={fashion:'fashion',appliances:'appliance',furniture:'furniture',food:'food',used_car:'used_car'};
+const DOMAIN_BY_CATEGORY={fashion:'fashion',appliances:'appliance',furniture:'furniture',food:'food',used_car:'used_car',baby:'baby',sports:'sports',electronics:'electronics',daily_goods:'daily_goods',beauty:'beauty',pet:'pet',hobby:'hobby'};
 const FIELD_MAP={capacity:'totalCapacity',installation_width:'installationWidth',freezer_capacity:'freezerCapacity',release_year:'releaseYear',origin_country:'originCountry',expiration_date:'expirationDate',storage_method:'storageMethod',model_year:'modelYear',repair_history:'repairHistory',fuel_type:'fuelType',seat_count:'seatCount',load_capacity:'loadCapacity',assembly_required:'assemblyRequired'};
 function condition(attributeId,operator,value,unit,role='required',source='category'){return normalizeCondition({attributeId,operator,value,unit,role,source})}
 function trigger(metric,operator,value,unit,reference='current',scope='candidate'){return normalizeTrigger({metric,operator,value,unit,reference,scope,role:'notification'})}

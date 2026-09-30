@@ -47,3 +47,24 @@ test('infers flight hotel and product domains without losing appliance compatibi
   assert.deepEqual(inferWatchDomain('500Lの冷蔵庫'),{domain:'appliance',subcategoryId:'refrigerator'});
   assert.ok(getDomainTriggerSuggestions('flight').some((item)=>item.id==='availability'));
 });
+
+test('supports broader product domains with shared generic trigger semantics',()=>{
+  const productDomains=['baby','sports','electronics','daily_goods','beauty','pet','hobby'];
+  for(const id of productDomains){
+    const schema=getDomainSchema(id);
+    assert.equal(schema?.domainId,id,`missing domain ${id}`);
+    assert.ok(getDomainField(id,'price'),`${id} should expose price`);
+    assert.ok(getDomainField(id,'condition'),`${id} should expose condition`);
+    assert.ok(getDomainTriggerSuggestions(id).some((item)=>item.id==='price'),`${id} should support price trigger`);
+  }
+});
+
+test('infers broader product domains and useful subcategories',()=>{
+  assert.deepEqual(inferWatchDomain('ベビーカー 軽量'),{domain:'baby',subcategoryId:'stroller'});
+  assert.deepEqual(inferWatchDomain('ランニングシューズ 26cm'),{domain:'sports',subcategoryId:'running_shoes'});
+  assert.deepEqual(inferWatchDomain('ワイヤレスイヤホン'),{domain:'electronics',subcategoryId:'audio'});
+  assert.deepEqual(inferWatchDomain('洗剤 詰め替え'),{domain:'daily_goods',subcategoryId:'household_consumable'});
+  assert.deepEqual(inferWatchDomain('化粧水 敏感肌'),{domain:'beauty',subcategoryId:'skincare'});
+  assert.deepEqual(inferWatchDomain('猫 フード 2kg'),{domain:'pet',subcategoryId:'pet_food'});
+  assert.deepEqual(inferWatchDomain('クリスマスツリー 180cm'),{domain:'hobby',subcategoryId:'seasonal_decor'});
+});

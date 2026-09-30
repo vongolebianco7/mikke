@@ -123,6 +123,16 @@ const usedCarFields=[
   field('warranty','保証','boolean',['is_true','is_false'],'common','seller','medium'), field('warrantyMonths','保証月数','integer',['gte'],'detailed','seller','low'), field('dealer','販売店','text',['eq','in','contains_text'],'detailed','seller','low'), field('dealerDistance','販売店距離','measurement',['lte'],'advanced','seller','low',{unit:'km'}), field('deliveryAvailable','陸送可','boolean',['is_true','is_false'],'advanced','seller','low'),
 ];
 
+const genericProductFields=[...commonProductFields,
+  field('productType','商品種別','enum',['eq','in'],'basic','identity','high'),
+  field('size','サイズ','text',['eq','in'],'common','spec','medium'),
+  field('quantity','数量','number',['gte','lte','between','eq'],'common','spec','medium'),
+  field('weight','重量','measurement',['lte','gte','between'],'common','spec','medium',{unit:'kg'}),
+  field('material','素材','text',['eq','in','contains_text'],'detailed','spec','low'),
+  field('warranty','保証','boolean',['is_true','is_false'],'detailed','purchase','medium'),
+  field('releaseYear','発売年','integer',['gte','lte','between'],'detailed','identity','low'),
+];
+
 const SCHEMAS={
   flight:{domainId:'flight',displayName:'航空券',fields:flightFields,triggerIds:['price','price_drop','watch_low','availability','award_availability','condition_match']},
   hotel:{domainId:'hotel',displayName:'ホテル',fields:hotelFields,triggerIds:['price','price_drop','availability','condition_match']},
@@ -131,6 +141,13 @@ const SCHEMAS={
   furniture:{domainId:'furniture',displayName:'家具',fields:furnitureFields,triggerIds:['price','availability','shipping','delivery','condition_match']},
   food:{domainId:'food',displayName:'食品',fields:foodFields,triggerIds:['price','shipping','coupon','availability','condition_match']},
   used_car:{domainId:'used_car',displayName:'中古車',fields:usedCarFields,triggerIds:['price','price_drop','new_listing','condition_match']},
+  baby:{domainId:'baby',displayName:'ベビー・キッズ',fields:genericProductFields,triggerIds:['price','availability','shipping','coupon','condition_match']},
+  sports:{domainId:'sports',displayName:'スポーツ・アウトドア',fields:genericProductFields,triggerIds:['price','availability','shipping','coupon','condition_match']},
+  electronics:{domainId:'electronics',displayName:'PC・電子機器',fields:genericProductFields,triggerIds:['price','availability','shipping','coupon','release','condition_match']},
+  daily_goods:{domainId:'daily_goods',displayName:'日用品',fields:genericProductFields,triggerIds:['price','availability','shipping','coupon','condition_match']},
+  beauty:{domainId:'beauty',displayName:'美容・コスメ',fields:genericProductFields,triggerIds:['price','availability','shipping','coupon','release','condition_match']},
+  pet:{domainId:'pet',displayName:'ペット用品',fields:genericProductFields,triggerIds:['price','availability','shipping','coupon','condition_match']},
+  hobby:{domainId:'hobby',displayName:'ホビー・季節用品',fields:genericProductFields,triggerIds:['price','availability','shipping','coupon','release','condition_match']},
 };
 
 export function getDomainSchema(domainId){
@@ -168,6 +185,13 @@ export function inferWatchDomain(text=''){
   if(/洗濯機/.test(raw)) return {domain:'appliance',subcategoryId:'washer'};
   if(/テレビ/.test(raw)) return {domain:'appliance',subcategoryId:'tv'};
   if(/エアコン/.test(raw)) return {domain:'appliance',subcategoryId:'air_conditioner'};
+  if(/ベビーカー|チャイルドシート|抱っこ紐|ベビー|おむつ/.test(raw)) return {domain:'baby',subcategoryId:/ベビーカー/.test(raw)?'stroller':undefined};
+  if(/ランニングシューズ|ランニング|スポーツ|アウトドア|テント|ゴルフ|トレーニング/.test(raw)) return {domain:'sports',subcategoryId:/ランニングシューズ|ランニング/.test(raw)?'running_shoes':undefined};
+  if(/ワイヤレスイヤホン|イヤホン|ヘッドホン|スマホ|スマートフォン|パソコン|タブレット|モニター|カメラ/.test(raw)) return {domain:'electronics',subcategoryId:/イヤホン|ヘッドホン/.test(raw)?'audio':undefined};
+  if(/洗剤|柔軟剤|ティッシュ|トイレットペーパー|日用品|詰め替え/.test(raw)) return {domain:'daily_goods',subcategoryId:/洗剤|柔軟剤|詰め替え/.test(raw)?'household_consumable':undefined};
+  if(/化粧水|乳液|美容液|コスメ|化粧品|スキンケア|シャンプー/.test(raw)) return {domain:'beauty',subcategoryId:/化粧水|乳液|美容液|スキンケア/.test(raw)?'skincare':undefined};
+  if(/猫|犬|ペット|キャットフード|ドッグフード/.test(raw)) return {domain:'pet',subcategoryId:/(?:猫|犬|ペット).*(?:フード)|(?:フード).*(?:猫|犬|ペット)|キャットフード|ドッグフード/.test(raw)?'pet_food':undefined};
+  if(/クリスマスツリー|クリスマス|雛人形|五月人形|模型|フィギュア|玩具|おもちゃ|ホビー/.test(raw)) return {domain:'hobby',subcategoryId:/クリスマスツリー|クリスマス/.test(raw)?'seasonal_decor':undefined};
   if(/ソファ|テーブル|椅子|チェア|ベッド|棚|家具/.test(raw)) return {domain:'furniture'};
   if(/コーヒー豆|食品|米|肉|魚|お菓子|飲料/.test(raw)) return {domain:'food'};
   if(/中古車|ヴェゼル|VEZEL|プリウス|自動車|車両/.test(raw)) return {domain:'used_car'};

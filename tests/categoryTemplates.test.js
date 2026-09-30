@@ -40,3 +40,31 @@ test('infers category and useful subcategory hints from representative Japanese 
   assert.deepEqual(inferProductCategory('ホンダ ヴェゼル 中古車'), { categoryId: 'used_car', subcategoryId: 'car' });
   assert.deepEqual(inferProductCategory('New Balance スニーカー'), { categoryId: 'fashion', subcategoryId: 'shoes' });
 });
+
+test('expands universal product templates beyond the original five categories', () => {
+  const expectations = {
+    baby: ['brand','condition','price'],
+    sports: ['brand','model','size','condition','price'],
+    electronics: ['brand','model','condition','price','warranty'],
+    daily_goods: ['brand','quantity','price'],
+    beauty: ['brand','condition','price'],
+    pet: ['brand','quantity','price'],
+    hobby: ['brand','condition','price'],
+  };
+  for (const [categoryId, ids] of Object.entries(expectations)) {
+    const template = getCategoryTemplate(categoryId);
+    assert.equal(template.categoryId, categoryId);
+    const all = suggestedAttributesForCategory(categoryId);
+    for (const id of ids) assert.ok(all.includes(id), `${categoryId} should suggest ${id}`);
+  }
+});
+
+test('infers expanded product categories from common Japanese shopping terms', () => {
+  assert.deepEqual(inferProductCategory('ベビーカー 軽量'), { categoryId: 'baby', subcategoryId: 'stroller' });
+  assert.deepEqual(inferProductCategory('ランニングシューズ 26cm'), { categoryId: 'sports', subcategoryId: 'running_shoes' });
+  assert.deepEqual(inferProductCategory('ワイヤレスイヤホン ノイズキャンセリング'), { categoryId: 'electronics', subcategoryId: 'audio' });
+  assert.deepEqual(inferProductCategory('洗剤 詰め替え 大容量'), { categoryId: 'daily_goods', subcategoryId: 'household_consumable' });
+  assert.deepEqual(inferProductCategory('化粧水 敏感肌'), { categoryId: 'beauty', subcategoryId: 'skincare' });
+  assert.deepEqual(inferProductCategory('猫 フード 2kg'), { categoryId: 'pet', subcategoryId: 'pet_food' });
+  assert.deepEqual(inferProductCategory('クリスマスツリー 180cm'), { categoryId: 'hobby', subcategoryId: 'seasonal_decor' });
+});

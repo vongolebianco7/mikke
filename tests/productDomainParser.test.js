@@ -31,6 +31,23 @@ test('appliance furniture food and used car use camelCase v3 field IDs',()=>{
   assert.equal(byField(car,'totalPrice').value,3000000);
 });
 
+test('expanded shopping categories preserve their inferred domain in the structured Watch',()=>{
+  const cases=[
+    ['ベビーカー、新品、3万円以下','baby'],
+    ['ランニングシューズ、26cm、新品、1万円以下','sports'],
+    ['ワイヤレスイヤホン、新品、2万円以下','electronics'],
+    ['洗剤 詰め替え、3000円以下','daily_goods'],
+    ['化粧水、新品、5000円以下','beauty'],
+    ['猫 フード 2kg、5000円以下','pet'],
+    ['クリスマスツリー 180cm、新品、2万円以下','hobby'],
+  ];
+  for(const [text,domain] of cases){
+    const parsed=parseGenericConditionClauses(text);
+    assert.equal(parsed.domain,domain,`${text} should stay ${domain}`);
+    assert.ok(byField(parsed,'price'),`${domain} should keep common price condition`);
+  }
+});
+
 test('parseWatchQuery creates schemaVersion 3 shopping Watches while retaining v2 compatibility fields',()=>{
   const r=parseWatchQuery('冷蔵庫、500L以上、設置幅70cm以下、15万円以下');
   assert.equal(r.schemaVersion,3);
