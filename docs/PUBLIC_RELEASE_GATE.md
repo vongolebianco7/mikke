@@ -8,16 +8,16 @@ PUBLIC_BETA is allowed only when Gate A, Gate B, and Gate C all pass.
 
 ## Gate A — Automated CI
 
-Latest integrated feature evidence before this documentation-only refresh:
+Latest integrated verification:
 
-- Feature code head: `0b92615b72e0660719a4055ae0eed9b6fd4f759b`
-- GitHub Actions release-gates run: `36725486982`
+- Current release-candidate branch HEAD before this evidence-recording commit: `e2c546d204cc2f76fb3d2835f6f78afc14f0d17a`
+- GitHub Actions release-gates run: `36784311282`
 - [x] `test` passes
 - [x] `security` passes
 - [x] `compliance-static` passes
 - [x] `build` passes
 
-This evidence covers the integrated Product Watch / Compatibility work, including:
+The verification covers the integrated Product Watch / Compatibility work, including:
 - broad product-domain support
 - required / preferred / notification / comparison roles
 - compatibility evaluation and ranking
@@ -25,7 +25,7 @@ This evidence covers the integrated Product Watch / Compatibility work, includin
 - connector-boundary compatibility evidence handling
 - generic cross-category exclusion clauses such as `除外 / 不可 / 不要`
 
-Because this file update changes the branch HEAD, a fresh release-gates run for the documentation-refresh commit must also pass before release.
+This documentation-only commit records that evidence. A release must still use a commit whose automated gates are green.
 
 ## Release-candidate environment
 
@@ -126,4 +126,4 @@ otherwise
 
 Current decision: **PUBLIC_BETA = BLOCKED**
 
-Reason: automated Gate A is green for the integrated feature code, but operator-side provider registration/acceptance, a stable release-candidate deployment, deployed iPhone attribution verification, and production smoke testing remain incomplete.
+Reason: automated Gate A is green, but operator-side provider registration/acceptance, a stable release-candidate deployment, deployed iPhone attribution verification, and production smoke testing remain incomplete.
