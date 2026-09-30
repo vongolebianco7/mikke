@@ -36,6 +36,37 @@ test('official product candidates mark unevaluable v3 domain fields unsupported 
   assert.equal(candidate.facts.material.state,'unsupported');
 });
 
+test('official candidates mark missing required compatibility evidence unsupported', async () => {
+  const watch={
+    id:'w-fit',schemaVersion:3,domain:'electronics',type:'shopping',title:'イヤホン',rawQuery:'iPhone 17 Pro対応イヤホン',
+    domainConditions:[],triggers:[],
+    compatibilityConditions:[{id:'phone-fit',relation:'compatible_with',subjectType:'audio',target:{type:'device',model:'iPhone 17 Pro'},role:'required'}],
+  };
+  const fetchImpl=async()=>({ok:true,json:async()=>({items:[{id:'p1',source:'test',title:'イヤホン',price:9000,available:true,attributes:{}}],providers:[{name:'test',status:'ok'}]})});
+  const result=await runWatchCheck(watch,{}, {fetchImpl});
+  const candidate=result.candidates[0];
+  assert.equal(candidate.evaluation.requiredMatch,false);
+  assert.deepEqual(candidate.evaluation.unsupportedCompatibilityRequired,['phone-fit']);
+  assert.equal(candidate.evaluation.compatibilityOutcomes[0].state,'unsupported');
+});
+
+test('official candidates preserve provider-supplied compatibility evidence', async () => {
+  const watch={
+    id:'w-fit-known',schemaVersion:3,domain:'electronics',type:'shopping',title:'イヤホン',rawQuery:'iPhone 17 Pro対応イヤホン',
+    domainConditions:[],triggers:[],
+    compatibilityConditions:[{id:'phone-fit',relation:'compatible_with',subjectType:'audio',target:{type:'device',model:'iPhone 17 Pro'},role:'required'}],
+  };
+  const fetchImpl=async()=>({ok:true,json:async()=>({items:[{
+    id:'p2',source:'test',title:'イヤホン',price:9000,available:true,attributes:{},
+    compatibilityEvidence:{'phone-fit':{state:'compatible',source:'manufacturer',reason:'explicit_compatibility_list'}},
+  }],providers:[{name:'test',status:'ok'}]})});
+  const result=await runWatchCheck(watch,{}, {fetchImpl});
+  const candidate=result.candidates[0];
+  assert.equal(candidate.evaluation.requiredMatch,true);
+  assert.equal(candidate.evaluation.compatibilityOutcomes[0].state,'compatible');
+  assert.equal(candidate.evaluation.compatibilityOutcomes[0].evidence.source,'manufacturer');
+});
+
 test('flight and hotel v3 Watches stay connector_pending and make zero provider calls', async () => {
   for (const domain of ['flight','hotel']) {
     let calls=0;
