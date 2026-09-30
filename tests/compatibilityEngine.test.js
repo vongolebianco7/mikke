@@ -9,6 +9,7 @@ import {
 import { getCompatibilitySemantics } from '../src/domain/categorySemantics.js';
 import { normalizeDomainWatch } from '../src/domain/watchSchema.js';
 import { parseWatchQuery } from '../src/domain/parseWatch.js';
+import { evaluateCandidate } from '../src/domain/evaluate.js';
 
 test('compatibility condition keeps relation, target and role separate from normal field conditions',()=>{
   const c=normalizeCompatibilityCondition({
@@ -42,6 +43,33 @@ test('preferred compatibility affects ranking but not filtering',()=>{
   const result=evaluateCompatibilityConditions(conditions,{fit:normalizeCompatibilityEvidence({state:'compatible'})});
   assert.equal(result.requiredMatch,true);
   assert.equal(result.preferredCompatible,1);
+});
+
+test('candidate evaluation blocks incompatible required compatibility and keeps unknown separate',()=>{
+  const watch={
+    domain:'electronics',
+    domainConditions:[],
+    compatibilityConditions:[{id:'phone-fit',relation:'compatible_with',target:{type:'device',model:'iPhone 17 Pro'},role:'required'}],
+  };
+  const incompatible=evaluateCandidate(watch,{candidateId:'a',price:9000,compatibilityEvidence:{'phone-fit':{state:'incompatible',source:'provider'}}});
+  const unknown=evaluateCandidate(watch,{candidateId:'b',price:8500,compatibilityEvidence:{'phone-fit':{state:'unknown'}}});
+  assert.equal(incompatible.requiredMatch,false);
+  assert.deepEqual(incompatible.failedCompatibilityRequired,['phone-fit']);
+  assert.equal(unknown.requiredMatch,false);
+  assert.deepEqual(unknown.unknownCompatibilityRequired,['phone-fit']);
+});
+
+test('preferred compatibility improves candidate score without becoming a hard filter',()=>{
+  const watch={
+    domain:'electronics',
+    domainConditions:[],
+    compatibilityConditions:[{id:'phone-fit',relation:'compatible_with',target:{type:'device',model:'iPhone 17 Pro'},role:'preferred'}],
+  };
+  const compatible=evaluateCandidate(watch,{candidateId:'a',price:9000,compatibilityEvidence:{'phone-fit':{state:'compatible'}}});
+  const unknown=evaluateCandidate(watch,{candidateId:'b',price:8500,compatibilityEvidence:{'phone-fit':{state:'unknown'}}});
+  assert.equal(compatible.requiredMatch,true);
+  assert.equal(unknown.requiredMatch,true);
+  assert.ok(compatible.score>unknown.score);
 });
 
 test('representative product domains expose compatibility semantics',()=>{
