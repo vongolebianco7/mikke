@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { normalizeDomainCondition } from '../src/domain/watchSchema.js';
 import { evaluateDomainConditions } from '../src/domain/conditionEngine.js';
 import { getDomainField } from '../src/domain/domainSchemas.js';
-import { resolveSemanticField } from '../src/domain/semanticFields.js';
 
 const known=(value,unit)=>({state:'known',value,meta:unit?{unit}:{}});
 
@@ -39,9 +38,11 @@ test('all product domains expose shared commerce conditions without category-spe
   }
 });
 
-test('semantic concepts resolve to domain-specific fields instead of collapsing unlike capacities into one field',()=>{
-  assert.equal(resolveSemanticField({conceptId:'capacity',domain:'appliance',subcategoryId:'refrigerator'}),'totalCapacity');
-  assert.equal(resolveSemanticField({conceptId:'capacity',domain:'food'}),'volume');
-  assert.equal(resolveSemanticField({conceptId:'size',domain:'fashion'}),'size');
-  assert.equal(resolveSemanticField({conceptId:'capacity',domain:'fashion'}),null);
+test('semantic concepts resolve to domain-specific fields instead of collapsing unlike capacities into one field',async()=>{
+  const semantic=await import('../src/domain/semanticFields.js').catch(()=>({}));
+  assert.equal(typeof semantic.resolveSemanticField,'function');
+  assert.equal(semantic.resolveSemanticField({conceptId:'capacity',domain:'appliance',subcategoryId:'refrigerator'}),'totalCapacity');
+  assert.equal(semantic.resolveSemanticField({conceptId:'capacity',domain:'food'}),'volume');
+  assert.equal(semantic.resolveSemanticField({conceptId:'size',domain:'fashion'}),'size');
+  assert.equal(semantic.resolveSemanticField({conceptId:'capacity',domain:'fashion'}),null);
 });
