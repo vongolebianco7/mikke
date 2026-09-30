@@ -18,3 +18,12 @@ test('composer exposes one obvious primary text input before category choices', 
   assert.match(css, /\.quick-text-entry/);
   assert.match(css, /min-height:\s*104px/);
 });
+
+test('typing in the primary text entry immediately gives parsing feedback', () => {
+  assert.match(source, /parseWatchQuery/);
+  assert.match(source, /data-quick-text-feedback/);
+  assert.match(source, /aria-live="polite"/);
+  assert.match(source, /addEventListener\('input'/);
+  assert.match(source, /dispatchEvent\(new Event\('input'/);
+  assert.match(source, /条件\s*\$\{conditionCount\}件/);
+});
