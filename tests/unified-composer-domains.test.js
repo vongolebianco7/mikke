@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const modes=readFileSync(new URL('../src/composerModes.js',import.meta.url),'utf8');
+const canonical=readFileSync(new URL('../src/canonicalComposerUi.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../composer-modes.css',import.meta.url),'utf8');
+const index=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 
 test('hotel composer follows a stay-oriented direct-input flow',()=>{
   assert.match(modes,/hotel-stay-editor/);
@@ -37,21 +39,18 @@ test('shopping composer uses category-aware direct controls for representative d
   assert.match(css,/shopping-primary-grid/);
 });
 
-test('free text is an explicit secondary helper rather than live parallel state',()=>{
-  assert.match(modes,/data-text-helper-apply/);
-  assert.match(modes,/data-text-helper-cancel/);
-  assert.match(modes,/入力しただけでは現在の条件は変わりません/);
-  assert.match(modes,/text-helper-preview/);
-  assert.match(modes,/parseAndApply\(form,input\.value\)/);
+test('natural language is the primary canonical entry rather than a secondary helper',()=>{
+  assert.match(canonical,/data-composer-text/);
+  assert.match(canonical,/controller\.applyText/);
+  assert.match(canonical,/form\._mikkeDraft=model\.watch/);
+  assert.doesNotMatch(index,/textEntryUi\.js/);
+  assert.doesNotMatch(index,/text-entry-ui\.css/);
 });
 
-test('all domains use a dedicated notification block separated from search conditions',()=>{
-  assert.match(modes,/function notificationBlock/);
-  assert.match(modes,/data-notify-price/);
-  assert.match(modes,/data-notify-trigger="availability"/);
-  assert.match(modes,/data-notify-trigger="award"/);
-  assert.match(modes,/data-notify-trigger="price_drop_percent"/);
-  assert.match(modes,/notificationBlock\('flight'\)/);
-  assert.match(modes,/notificationBlock\('hotel'\)/);
-  assert.match(modes,/notificationBlock\('shopping'\)/);
+test('all domains use one canonical notification section separated from search conditions',()=>{
+  assert.match(canonical,/data-canonical-notification/);
+  assert.match(canonical,/いつ知らせる？/);
+  assert.match(canonical,/data-canonical-notify-price/);
+  assert.match(canonical,/data-canonical-notify="availability"/);
+  assert.match(canonical,/data-canonical-notify="award"/);
 });
