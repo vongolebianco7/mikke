@@ -110,37 +110,66 @@ async function fetchJson(fetchImpl, request) {
   return response.json();
 }
 
-export async function searchShoppingProviders(watch, { env = process.env, fetchImpl = fetch } = {}) {
-  const items = [];
-  const providers = [];
+function providerEvent(logger, provider, outcome, startedAt, statusCode) {
+  logger?.provider?.({
+    provider,
+    outcome,
+    ...(statusCode === undefined ? {} : { statusCode }),
+    durationMs: Math.max(0, Date.now() - startedAt),
+  });
+}
 
-  if (env.RAKUTEN_APPLICATION_ID && env.RAKUTEN_ACCESS_KEY) {
-    try {
-      const data = await fetchJson(fetchImpl, buildRakutenRequest(watch, {
-        applicationId: env.RAKUTEN_APPLICATION_ID,
-        accessKey: env.RAKUTEN_ACCESS_KEY,
-      }));
-      items.push(...(data.items || []).map(normalizeRakutenItem));
-      providers.push({ name: 'rakuten', status: 'ok' });
-    } catch {
-      providers.push({ name: 'rakuten', status: 'error' });
-    }
-  } else {
-    providers.push({ name: 'rakuten', status: 'not_configured' });
+async function runRakuten(watch, env, fetchImpl, logger) {
+  const startedAt = Date.now();
+  if (!env.RAKUTEN_APPLICATION_ID || !env.RAKUTEN_ACCESS_KEY) {
+    providerEvent(logger, 'rakuten', 'not_configured', startedAt);
+    return { items: [], provider: { name: 'rakuten', status: 'not_configured' } };
   }
 
-  if (env.YAHOO_APP_ID) {
-    try {
-      const data = await fetchJson(fetchImpl, buildYahooRequest(watch, { appId: env.YAHOO_APP_ID }));
-      items.push(...(data.hits || []).map(normalizeYahooItem));
-      providers.push({ name: 'yahoo', status: 'ok' });
-    } catch {
-      providers.push({ name: 'yahoo', status: 'error' });
-    }
-  } else {
-    providers.push({ name: 'yahoo', status: 'not_configured' });
+  try {
+    const data = await fetchJson(fetchImpl, buildRakutenRequest(watch, {
+      applicationId: env.RAKUTEN_APPLICATION_ID,
+      accessKey: env.RAKUTEN_ACCESS_KEY,
+    }));
+    providerEvent(logger, 'rakuten', 'success', startedAt, 200);
+    return {
+      items: (data.items || []).map(normalizeRakutenItem),
+      provider: { name: 'rakuten', status: 'ok' },
+    };
+  } catch {
+    providerEvent(logger, 'rakuten', 'error', startedAt);
+    return { items: [], provider: { name: 'rakuten', status: 'error' } };
+  }
+}
+
+async function runYahoo(watch, env, fetchImpl, logger) {
+  const startedAt = Date.now();
+  if (!env.YAHOO_APP_ID) {
+    providerEvent(logger, 'yahoo', 'not_configured', startedAt);
+    return { items: [], provider: { name: 'yahoo', status: 'not_configured' } };
   }
 
+  try {
+    const data = await fetchJson(fetchImpl, buildYahooRequest(watch, { appId: env.YAHOO_APP_ID }));
+    providerEvent(logger, 'yahoo', 'success', startedAt, 200);
+    return {
+      items: (data.hits || []).map(normalizeYahooItem),
+      provider: { name: 'yahoo', status: 'ok' },
+    };
+  } catch {
+    providerEvent(logger, 'yahoo', 'error', startedAt);
+    return { items: [], provider: { name: 'yahoo', status: 'error' } };
+  }
+}
+
+export async function searchShoppingProviders(watch, { env = process.env, fetchImpl = fetch, logger } = {}) {
+  const results = await Promise.all([
+    runRakuten(watch, env, fetchImpl, logger),
+    runYahoo(watch, env, fetchImpl, logger),
+  ]);
+
+  const items = results.flatMap((result) => result.items);
+  const providers = results.map((result) => result.provider);
   const unique = [...new Map(items.filter((item) => item.id && item.title && Number.isFinite(item.price)).map((item) => [item.id, item])).values()];
   return { items: unique, providers };
 }
