@@ -6,7 +6,8 @@ import { getComposerDraftOverride } from './composerDraftBridge.js';
 const COLOR_WORDS=['グレー','灰色','黒','ブラック','白','ホワイト','ベージュ','ネイビー','青','ブルー','赤','レッド'];
 function parsePrice(raw){const normalized=raw.replace(/,/g,'');const man=normalized.match(/(\d+(?:\.\d+)?)\s*万円(?:以下|未満|切ったら|まで|になったら)?/);if(man)return Math.round(Number(man[1])*10000);const yen=normalized.match(/(\d{3,8})\s*円?(?:以下|未満|切ったら|まで|になったら)/);return yen?Number(yen[1]):undefined}
 function parseSize(raw){const match=raw.match(/(\d{2}(?:\.\d)?)\s*cm/i);return match?`${match[1]}cm`:undefined}
-function inferType(raw){if(/(航空券|フライト|直行便|往復|片道|から.+(?:へ|まで)|→)/.test(raw))return'flight';if(/(ホテル|宿|旅館|泊|宿泊)/.test(raw))return'hotel';return'shopping'}
+function looksLikeNumericRange(raw){return /\d[\d.,]*\s*(?:円|万円|%|ヶ月|か月|歳|kg|g|cm|mm|m|L|ml|GB|TB)?\s*から/i.test(raw)}
+function inferType(raw){if(/(航空券|フライト|直行便|往復|片道|→)/.test(raw))return'flight';if(/から.+(?:へ|まで)/.test(raw)&&!looksLikeNumericRange(raw))return'flight';if(/(ホテル|宿|旅館|泊|宿泊)/.test(raw))return'hotel';return'shopping'}
 function extractTitle(raw,type){if(type==='flight'||type==='hotel')return raw.split(/[、,]/)[0].trim();return raw.split(/[、,]/)[0].trim()||'新しいWatch'}
 function includesRequiredLanguage(text,token){return new RegExp(`${token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}[^、,]*(?:必須|絶対|のみ)`).test(text)}
 function includesPreferredLanguage(text,token){return new RegExp(`${token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}[^、,]*(?:できれば|希望|だと嬉しい|優先)`).test(text)}
