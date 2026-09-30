@@ -1,4 +1,4 @@
-const CONDITION_ROLES = new Set(['required', 'preferred']);
+const CONDITION_ROLES = new Set(['required', 'preferred', 'notification', 'comparison']);
 const CONDITION_SOURCES = new Set(['common', 'category', 'subcategory', 'custom']);
 
 export function normalizeCondition(condition = {}) {
@@ -64,7 +64,8 @@ export function normalizeDomainWatch(watch = {}) {
 
 export function genericConditionFromLegacy(key, value, role = 'preferred') {
   if (value === undefined) return null;
-  const common = { role: role === 'required' ? 'required' : 'preferred', source: 'common' };
+  const normalizedRole = CONDITION_ROLES.has(role) ? role : 'preferred';
+  const common = { role: normalizedRole, source: 'common' };
   if (key === 'maxPrice') return normalizeCondition({ ...common, attributeId: 'price', operator: 'lte', value, unit: 'JPY' });
   if (key === 'size') return normalizeCondition({ ...common, attributeId: 'size', operator: 'eq', value });
   if (key === 'colors') return normalizeCondition({ ...common, attributeId: 'color', operator: 'in', value: Array.isArray(value) ? [...value] : [value] });
