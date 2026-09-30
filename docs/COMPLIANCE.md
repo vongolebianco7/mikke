@@ -12,6 +12,8 @@ Mikke uses three mandatory release gates documented in `docs/PUBLIC_RELEASE_GATE
 
 `merge != publish`. A merge never implies PUBLIC_BETA approval. Enabled production connectors are governed by `docs/PROVIDER_REGISTRY.md`; a provider that is not `Approved` must not be treated as production-approved.
 
+The public-beta non-functional baseline is defined in `docs/NONFUNCTIONAL_REQUIREMENTS.md`. Production incident response is defined in `docs/INCIDENT_RUNBOOK.md`. These are release inputs, not optional post-launch documentation.
+
 ## Core rules
 
 1. Use official APIs or other explicitly permitted data sources first.
@@ -21,11 +23,14 @@ Mikke uses three mandatory release gates documented in `docs/PUBLIC_RELEASE_GATE
 5. Send only the minimum search data required for a Watch to the selected provider.
 6. Do not silently substitute demo/sample data for live data. Sample mode must be visibly identified in the UI.
 7. Preserve required provider attribution/credits whenever provider data is shown.
-8. Avoid aggressive traffic. Current adapters make one request per configured provider per user check, cap results at 20, apply a 5-second timeout, and do not automatically retry failures.
+8. Avoid aggressive traffic. Current adapters make at most one request per configured provider per user check, cap results at 20, apply a 5-second timeout, and do not automatically retry failures. Independent configured providers may run concurrently to avoid additive timeout latency.
 9. A provider failure must degrade safely: show unavailable/demo state rather than repeatedly hitting the provider.
 10. New connectors require a terms-and-data-use review before implementation is enabled in production.
 11. New providers/categories do not inherit approval from existing providers.
 12. Pricing claims must not invent unsupported reference prices, discount percentages, or “cheapest” claims.
+13. Operational telemetry must be metadata-only. Raw Watch text, full provider request URLs, credentials, localStorage contents, and authorization values must not be intentionally logged.
+14. In-memory serverless rate limiting and in-flight deduplication are defense-in-depth controls only; they must not be represented as globally consistent distributed quotas.
+15. Unexpected server exceptions must fail closed with controlled responses and must not expose stack traces, credentials, or query content.
 
 ## Rakuten Ichiba
 
@@ -51,6 +56,7 @@ For the current MVP:
 - No user account, payment data, or personal profile is intentionally collected by the application.
 - For live shopping search, the Watch search phrase and relevant structured conditions are sent to Mikke's same-origin server route, which then calls configured official provider APIs.
 - Hosting infrastructure may process technical request information such as IP address, user agent, timestamps and route metadata.
+- Mikke operational logs should contain only sanitized route/provider/outcome/status/duration metadata, not Watch text or full provider URLs.
 - Provider API secrets are not returned to the browser.
 - API responses use `Cache-Control: no-store`.
 - Public privacy wording is maintained in `PRIVACY.md`.
@@ -71,14 +77,18 @@ Manual compliance review must run again when any of these materially change:
 
 ## Pre-launch checklist
 
-- [ ] Gate A automated checks all pass.
+- [ ] Gate A automated checks all pass at the exact release-candidate HEAD.
 - [ ] Review current Rakuten API terms, API version, attribution requirements, and credential handling.
 - [ ] Review current Yahoo! JAPAN developer/API terms, rate rules, attribution requirements, and credential handling.
 - [ ] Register provider applications and accept their terms manually.
 - [ ] Add production credentials only through server-side environment variables.
-- [ ] Confirm no secrets are present in Git history or browser bundles.
+- [ ] Confirm no secrets are present in Git history, browser bundles, responses, or production network traces.
 - [ ] Verify provider attribution visually on iPhone-size screens.
 - [ ] Confirm sample/demo data is unmistakably labeled and cannot be confused with live offers.
-- [ ] Confirm `PRIVACY.md` matches the deployed data flow.
+- [ ] Confirm `PRIVACY.md` matches the deployed data flow and operational logging.
 - [ ] Confirm `TERMS.md` pricing/availability disclaimer matches the deployed UI.
+- [ ] Confirm sanitized 5xx/429/provider outcome telemetry is visible in the selected hosting/runtime logs.
+- [ ] Configure and verify one operator alert path for release incidents; no paid APM is required.
+- [ ] Fault-inject 500, provider failure, and 429 and verify safe user-visible behavior.
+- [ ] Verify rollback/connector-disable procedure from `docs/INCIDENT_RUNBOOK.md` against the release-candidate environment.
 - [ ] Complete Gate C production smoke verification.
