@@ -16,6 +16,12 @@ function notificationHtml(items){
   return `<div class="watch-card-notification"><span>通知</span><b>${esc(items[0])}</b>${items.length>1?`<small>＋${items.length-1}件</small>`:''}</div>`;
 }
 
+function actionHtml(card,domain){
+  if(domain==='flight'||domain==='hotel')return `<div class="watch-card-actions connector-pending"><button type="button" disabled aria-disabled="true">検索連携は準備中</button><small>条件の作成・保存・編集は利用できます</small></div>`;
+  const existingAction=card.querySelector('.check')?.outerHTML||'';
+  return existingAction?`<div class="watch-card-actions">${existingAction}</div>`:'';
+}
+
 export function enhanceSavedWatchCards(root=document){
   const cards=[...(root.querySelectorAll?.('.watch-list .watch-card')||[])];
   if(!cards.length)return;
@@ -26,9 +32,8 @@ export function enhanceSavedWatchCards(root=document){
     const summary=summarizeWatchCard(watch);
     const domain=watch.domain||watch.type||'shopping';
     const status=watch.status==='stopped'?'停止':'監視中';
-    const existingAction=card.querySelector('.check')?.outerHTML||'';
     card.classList.add('watch-card-scannable');
-    card.innerHTML=`<div class="watch-card-header"><span class="watch-card-kind"><i>${iconFor(domain)}</i>${labelFor(domain)}</span><span class="status">${status}</span></div><h3 class="watch-card-subject">${esc(summary.subject)}</h3>${conditionHtml(summary.conditions)}${notificationHtml(summary.notifications)}${existingAction?`<div class="watch-card-actions">${existingAction}</div>`:''}`;
+    card.innerHTML=`<div class="watch-card-header"><span class="watch-card-kind"><i>${iconFor(domain)}</i>${labelFor(domain)}</span><span class="status">${status}</span></div><h3 class="watch-card-subject">${esc(summary.subject)}</h3>${conditionHtml(summary.conditions)}${notificationHtml(summary.notifications)}${actionHtml(card,domain)}`;
   });
 }
 
