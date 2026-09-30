@@ -36,5 +36,5 @@ export function parseWatchQuery(raw){
     return{...base,schemaVersion:3,domain:parsed.domain,target:{...parsed.target,title:base.title},domainConditions:parsed.domainConditions,triggers:parsed.triggers,metadata:{...parsed.metadata,inputMode:'text'}};
   }
   const generic=parseGenericConditionClauses(text);
-  return{...base,schemaVersion:3,domain:generic.domain,target:{...generic.target,title:base.title},domainConditions:generic.domainConditions,genericConditions:generic.conditions,triggers:generic.triggers,metadata:{rawQuery:text,inputMode:'text'}};
+  return{...base,schemaVersion:3,domain:generic.domain,target:{...generic.target,title:base.title},domainConditions:generic.domainConditions,genericConditions:generic.conditions,compatibilityConditions:generic.compatibilityConditions,triggers:generic.triggers,metadata:{rawQuery:text,inputMode:'text'}};
 }
