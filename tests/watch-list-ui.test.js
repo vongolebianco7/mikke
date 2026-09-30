@@ -11,3 +11,9 @@ test('saved watch cards use one shared hierarchy for subject, conditions and not
   assert.match(source,/summarizeWatchCard/);
   assert.doesNotMatch(source,/rawQuery/);
 });
+
+test('flight and hotel cards honestly show live checking is not connected yet',()=>{
+  assert.match(source,/検索連携は準備中/);
+  assert.match(source,/connector-pending/);
+  assert.match(source,/domain==='flight'\|\|domain==='hotel'/);
+});
