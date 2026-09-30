@@ -34,6 +34,8 @@ export function getCategoryTemplate(categoryId){
 
 export function inferProductCategory(text=''){
   const raw=String(text);
+  // Product keywords win over generic route-like wording such as "0ヶ月から15kgまで".
+  if(/ベビーカー|チャイルドシート|抱っこ紐|ベビー|おむつ/.test(raw)) return {categoryId:'baby',subcategoryId:/ベビーカー/.test(raw)?'stroller':undefined};
   const inferred=inferWatchDomain(raw);
   if(inferred.domain==='appliance') return {categoryId:'appliances',subcategoryId:inferred.subcategoryId};
   if(inferred.domain==='furniture') return {categoryId:'furniture',subcategoryId:/ソファ/.test(raw)?'sofa':undefined};
