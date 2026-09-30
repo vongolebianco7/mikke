@@ -8,6 +8,7 @@ import {
 } from '../src/domain/compatibilityEngine.js';
 import { getCompatibilitySemantics } from '../src/domain/categorySemantics.js';
 import { normalizeDomainWatch } from '../src/domain/watchSchema.js';
+import { parseWatchQuery } from '../src/domain/parseWatch.js';
 
 test('compatibility condition keeps relation, target and role separate from normal field conditions',()=>{
   const c=normalizeCompatibilityCondition({
@@ -61,4 +62,21 @@ test('domain watches normalize compatibility conditions separately from field co
   assert.equal(watch.compatibilityConditions[0].target.model,'iPhone 17 Pro');
   assert.equal(watch.compatibilityConditions[0].relation,'compatible_with');
   assert.equal(watch.compatibilityConditions[0].role,'required');
+});
+
+test('natural language device compatibility enters Structured Watch separately',()=>{
+  const watch=parseWatchQuery('iPhone 17 Pro対応のワイヤレスイヤホン、1万円以下になったら');
+  assert.equal(watch.domain,'electronics');
+  assert.equal(watch.compatibilityConditions.length,1);
+  assert.equal(watch.compatibilityConditions[0].relation,'compatible_with');
+  assert.deepEqual(watch.compatibilityConditions[0].target,{type:'device',model:'iPhone 17 Pro'});
+  assert.equal(watch.compatibilityConditions[0].role,'required');
+});
+
+test('natural language baby limits become compatibility requirements instead of generic size fields',()=>{
+  const watch=parseWatchQuery('ベビーカー、0ヶ月から、15kgまで');
+  assert.equal(watch.domain,'baby');
+  assert.deepEqual(watch.compatibilityConditions.map(x=>x.target.type),['age_range','weight_range']);
+  assert.equal(watch.compatibilityConditions[0].target.minAgeMonths,0);
+  assert.equal(watch.compatibilityConditions[1].target.maxWeightKg,15);
 });
