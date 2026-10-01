@@ -23,10 +23,11 @@ test('Watch composer wires deterministic phrase suggestions into the UI', () => 
   assert.match(css, /overflow-x:auto/);
 });
 
-test('Watch composer visibly separates required preferred and notification conditions', () => {
+test('Watch composer visibly separates required preferred and change conditions', () => {
   assert.match(app, /必須/);
   assert.match(app, /希望/);
-  assert.match(app, /通知条件/);
+  assert.match(app, /変化条件/);
+  assert.doesNotMatch(app, /通知条件/);
   assert.match(app, /data-role-toggle/);
 });
 

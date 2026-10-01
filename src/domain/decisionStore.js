@@ -9,12 +9,28 @@ export function loadDecisions(storage){
   }catch{return{}}
 }
 
-export function saveDecisions(storage,decisions){storage.setItem(KEY,JSON.stringify(decisions))}
+export function saveDecisions(storage,decisions){
+  try{
+    storage.setItem(KEY,JSON.stringify(decisions));
+    return {ok:true};
+  }catch{
+    return {ok:false,reason:'storage_unavailable'};
+  }
+}
 
-export function recordDecision(storage,watchId,decision){
+function nextDecisionState(storage,watchId,decision){
   const state=loadDecisions(storage);
   const current=Array.isArray(state[watchId])?state[watchId]:[];
   state[watchId]=[...current,{...decision}].slice(-100);
-  saveDecisions(storage,state);
   return state;
+}
+
+export function tryRecordDecision(storage,watchId,decision){
+  const state=nextDecisionState(storage,watchId,decision);
+  const saved=saveDecisions(storage,state);
+  return saved.ok?{ok:true,state}:{ok:false,reason:saved.reason,state};
+}
+
+export function recordDecision(storage,watchId,decision){
+  return tryRecordDecision(storage,watchId,decision).state;
 }

@@ -9,9 +9,16 @@ export function loadHistory(storage){
   }catch{return {}}
 }
 
-export function saveHistory(storage,history){storage.setItem(KEY,JSON.stringify(history))}
+export function saveHistory(storage,history){
+  try{
+    storage.setItem(KEY,JSON.stringify(history));
+    return {ok:true};
+  }catch{
+    return {ok:false,reason:'storage_unavailable'};
+  }
+}
 
-export function appendCheckHistory(storage,watchId,result){
+function nextHistory(storage,watchId,result){
   const history=loadHistory(storage);
   const current=history[watchId]||{observations:[],events:[]};
   const observations=result.candidates.map((c)=>c.observation).filter(Boolean);
@@ -19,8 +26,17 @@ export function appendCheckHistory(storage,watchId,result){
     observations:[...current.observations,...observations].slice(-100),
     events:[...current.events,...(result.events||[])].slice(-100),
   };
-  saveHistory(storage,history);
   return history;
+}
+
+export function tryAppendCheckHistory(storage,watchId,result){
+  const history=nextHistory(storage,watchId,result);
+  const saved=saveHistory(storage,history);
+  return saved.ok?{ok:true,history}:{ok:false,reason:saved.reason,history};
+}
+
+export function appendCheckHistory(storage,watchId,result){
+  return tryAppendCheckHistory(storage,watchId,result).history;
 }
 
 export function previousByCandidate(history,watchId){
