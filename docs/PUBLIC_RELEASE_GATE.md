@@ -13,6 +13,7 @@ A release candidate must use an exact commit whose GitHub Actions `release-gates
 - [ ] `test` passes
 - [ ] `security` passes
 - [ ] `compliance-static` passes
+- [ ] `nonfunctional-static` passes
 - [ ] `build` passes
 
 The automated suite must cover product/compatibility behavior plus the non-functional boundary work: sanitized telemetry, input bounds, controlled server errors, provider isolation/concurrency, safe URLs, deletion behavior, and release/compliance checks.
@@ -74,6 +75,7 @@ The automated suite must cover product/compatibility behavior plus the non-funct
 - [ ] `docs/NONFUNCTIONAL_REQUIREMENTS.md` reviewed against the actual RC environment
 - [ ] `docs/INCIDENT_RUNBOOK.md` rollback / connector-disable path is executable
 - [ ] Git history / secret review completed at release-candidate HEAD
+- [ ] Repository protection/ruleset for `main` reviewed; required CI/status checks configured if the hosting/account permissions allow it
 
 ## Gate C — Production / release-candidate smoke
 
@@ -138,4 +140,4 @@ otherwise
 
 Current decision: **PUBLIC_BETA = BLOCKED**
 
-Reason: Gate A must be re-recorded at the final integrated release-candidate HEAD, while operator provider approval/credentials, a stable RC environment, iPhone/live-provider verification, incident notification path, and production smoke remain incomplete.
+Reason: Gate A must be re-recorded at the final integrated release-candidate HEAD, while operator provider approval/credentials, a stable RC environment, iPhone/live-provider verification, incident notification path, repository protection review, and production smoke remain incomplete.
