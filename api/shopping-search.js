@@ -57,6 +57,8 @@ export default async function handler(req, res, deps = {}) {
 
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
