@@ -18,6 +18,14 @@ test('shopping API rejects non-POST methods without contacting providers', async
   assert.equal(res.payload.error, 'method_not_allowed');
 });
 
+test('shopping API sends defensive response headers on every response', async () => {
+  const res = responseRecorder();
+  await handler({ method: 'GET' }, res);
+  assert.equal(res.headers['Cache-Control'], 'no-store');
+  assert.equal(res.headers['X-Content-Type-Options'], 'nosniff');
+  assert.equal(res.headers['Referrer-Policy'], 'no-referrer');
+});
+
 test('shopping API validates a shopping watch before provider access', async () => {
   const res = responseRecorder();
   await handler({ method: 'POST', body: { watch: { type: 'flight', rawQuery: '東京 ホノルル' } } }, res);
@@ -47,6 +55,21 @@ test('shopping API rejects pathological structured conditions before provider ac
   assert.equal(calls, 0);
 });
 
+test('shopping API rejects oversized structured conditions before provider access', async () => {
+  const res = responseRecorder();
+  let calls = 0;
+  const oversized = { note: 'x'.repeat(20 * 1024) };
+  await handler({
+    method: 'POST', headers: { 'x-forwarded-for': '203.0.113.14' },
+    body: { watch: { type: 'shopping', rawQuery: 'test', conditions: oversized } },
+  }, res, {
+    searchProviders: async () => { calls += 1; return { items: [], providers: [] }; },
+  });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.payload.error, 'invalid_watch');
+  assert.equal(calls, 0);
+});
+
 test('shopping API never exposes provider credentials in its response', async () => {
   const res = responseRecorder();
   await handler({
@@ -61,13 +84,17 @@ test('shopping API never exposes provider credentials in its response', async ()
   assert.equal(res.headers['Cache-Control'], 'no-store');
 });
 
-test('rate-limited shopping request returns 429 and never calls upstream provider', async () => {
+test('rate-limited shopping request returns 429, emits safe telemetry, and never calls upstream provider', async () => {
   const res = responseRecorder();
   let calls = 0;
+  const events = [];
+  const logger = { api: (event) => events.push(event), provider: () => {} };
+  const rawQuery = 'private rate limited search';
   await handler({
     method: 'POST', headers: { 'x-forwarded-for': '203.0.113.11' },
-    body: { watch: { type: 'shopping', rawQuery: 'New Balance 996', conditions: {} } },
+    body: { watch: { type: 'shopping', rawQuery, conditions: {} } },
   }, res, {
+    logger,
     rateLimiter: { check: () => ({ allowed: false, retryAfter: 7 }) },
     fetchImpl: async () => { calls += 1; throw new Error('must not be called'); },
   });
@@ -75,6 +102,9 @@ test('rate-limited shopping request returns 429 and never calls upstream provide
   assert.equal(res.headers['Retry-After'], '7');
   assert.equal(res.payload.error, 'rate_limited');
   assert.equal(calls, 0);
+  assert.equal(events.at(-1).outcome, 'rate_limited');
+  assert.equal(events.at(-1).statusCode, 429);
+  assert.equal(JSON.stringify(events).includes(rawQuery), false);
 });
 
 test('unexpected server failure becomes controlled 500 and sanitized telemetry', async () => {
