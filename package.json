@@ -7,10 +7,12 @@
     "test": "node --test tests/*.test.js",
     "test:unit": "node --test tests/composerController.test.js tests/composerDraft.test.js tests/composerModel.test.js tests/parseWatch.test.js tests/parseFlightWatch.test.js tests/parseHotelWatch.test.js tests/productDomainParser.test.js tests/conditionEngine.test.js tests/triggerEngine.test.js tests/watchStore.test.js tests/normalizeWatch.test.js tests/watch-card-summary.test.js tests/result-evidence.test.js",
     "test:integration": "node --test tests/composer-integration.test.js tests/domain-watch-e2e.test.js tests/watch-list-ui.test.js tests/flightPersistence.test.js",
-    "test:system": "npm test && npm run build && npm run security && npm run compliance",
+    "test:system": "npm test && npm run build && npm run security && npm run compliance && npm run nonfunctional",
     "security": "node scripts/security-check.mjs",
+    "security:history": "node scripts/history-secret-check.mjs",
     "compliance": "node scripts/compliance-check.mjs",
-    "build": "node --check src/app.js && node --check src/domain/composerController.js && node --check src/canonicalComposerUi.js && node --check api/shopping-search.js && node --check src/server/requestGuard.js && node --check src/server/shoppingProviders.js && node scripts/compliance-check.mjs",
+    "nonfunctional": "node scripts/nonfunctional-check.mjs",
+    "build": "node --check src/app.js && node --check src/domain/composerController.js && node --check src/canonicalComposerUi.js && node --check api/shopping-search.js && node --check src/server/requestGuard.js && node --check src/server/shoppingProviders.js && node --check src/server/operationalTelemetry.js && node scripts/compliance-check.mjs && node scripts/nonfunctional-check.mjs",
     "serve": "python3 -m http.server 4173"
   },
   "devDependencies": {
