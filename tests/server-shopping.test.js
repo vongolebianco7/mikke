@@ -80,16 +80,49 @@ test('normalizeYahooItem preserves legacy fields and attaches evidence metadata'
   assert.equal(facts.coupon_eligibility.state, 'unsupported');
 });
 
+test('credentials alone do not enable providers', async () => {
+  let calls = 0;
+  const result = await searchShoppingProviders(watch, {
+    env: {
+      RAKUTEN_APPLICATION_ID: 'r-app',
+      RAKUTEN_ACCESS_KEY: 'r-key',
+      YAHOO_APP_ID: 'y-app',
+    },
+    fetchImpl: async () => { calls += 1; return { ok: true, json: async () => ({}) }; },
+  });
+  assert.equal(calls, 0);
+  assert.deepEqual(result.providers, [
+    { name: 'rakuten', status: 'disabled' },
+    { name: 'yahoo', status: 'disabled' },
+  ]);
+});
+
+test('enabled and configured provider performs exactly one upstream request', async () => {
+  let calls = 0;
+  const result = await searchShoppingProviders(watch, {
+    env: { MIKKE_YAHOO_ENABLED: 'true', YAHOO_APP_ID: 'y-app' },
+    fetchImpl: async () => {
+      calls += 1;
+      return { ok: true, json: async () => ({ hits: [] }) };
+    },
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(result.providers, [
+    { name: 'rakuten', status: 'disabled' },
+    { name: 'yahoo', status: 'ok' },
+  ]);
+});
+
 test('searchShoppingProviders skips unconfigured providers and does not retry failures', async () => {
   let calls = 0;
   const fetchImpl = async () => { calls += 1; throw new Error('network down'); };
   const result = await searchShoppingProviders(watch, {
-    env: { YAHOO_APP_ID: 'yahoo-id' }, fetchImpl,
+    env: { MIKKE_YAHOO_ENABLED: 'true', YAHOO_APP_ID: 'yahoo-id' }, fetchImpl,
   });
   assert.equal(calls, 1);
   assert.equal(result.items.length, 0);
   assert.deepEqual(result.providers, [
-    { name: 'rakuten', status: 'not_configured' },
+    { name: 'rakuten', status: 'disabled' },
     { name: 'yahoo', status: 'error' },
   ]);
 });
@@ -115,7 +148,13 @@ test('configured providers start concurrently and preserve successful results wh
 
   const result = await Promise.race([
     searchShoppingProviders(watch, {
-      env: { RAKUTEN_APPLICATION_ID: 'r-app', RAKUTEN_ACCESS_KEY: 'r-key', YAHOO_APP_ID: 'y-app' },
+      env: {
+        MIKKE_RAKUTEN_ENABLED: 'true',
+        MIKKE_YAHOO_ENABLED: 'true',
+        RAKUTEN_APPLICATION_ID: 'r-app',
+        RAKUTEN_ACCESS_KEY: 'r-key',
+        YAHOO_APP_ID: 'y-app',
+      },
       fetchImpl,
     }),
     new Promise((_, reject) => setTimeout(() => reject(new Error('providers did not start concurrently')), 100)),
@@ -134,14 +173,14 @@ test('provider telemetry contains outcome metadata without query or request URL'
   const events = [];
   const logger = { provider: (event) => events.push(event) };
   await searchShoppingProviders(watch, {
-    env: { YAHOO_APP_ID: 'yahoo-id' },
+    env: { MIKKE_YAHOO_ENABLED: 'true', YAHOO_APP_ID: 'yahoo-id' },
     logger,
     fetchImpl: async () => ({ ok: true, json: async () => ({ hits: [] }) }),
   });
 
   assert.equal(events.length, 2);
   assert.deepEqual(events.map(({ provider, outcome }) => ({ provider, outcome })), [
-    { provider: 'rakuten', outcome: 'not_configured' },
+    { provider: 'rakuten', outcome: 'disabled' },
     { provider: 'yahoo', outcome: 'success' },
   ]);
   assert.equal(JSON.stringify(events).includes(watch.rawQuery), false);
