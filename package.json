@@ -12,7 +12,7 @@
     "security:history": "node scripts/history-secret-check.mjs",
     "compliance": "node scripts/compliance-check.mjs",
     "nonfunctional": "node scripts/nonfunctional-check.mjs",
-    "build": "node --check src/app.js && node --check src/domain/composerController.js && node --check src/canonicalComposerUi.js && node --check api/shopping-search.js && node --check src/server/requestGuard.js && node --check src/server/shoppingProviders.js && node --check src/server/operationalTelemetry.js && node scripts/compliance-check.mjs && node scripts/nonfunctional-check.mjs",
+    "build": "node --check src/app.js && node --check src/domain/composerController.js && node --check src/canonicalComposerUi.js && node --check api/shopping-search.js && node --check src/server/requestGuard.js && node --check src/server/shoppingProviders.js && node --check src/server/operationalTelemetry.js && node scripts/compliance-check.mjs && node scripts/nonfunctional-check.mjs && node scripts/prepare-vercel-static.mjs public",
     "serve": "python3 -m http.server 4173"
   },
   "devDependencies": {
