@@ -22,6 +22,14 @@ function enabled(value) {
   return value === 'true';
 }
 
+class ProviderHttpError extends Error {
+  constructor(statusCode) {
+    super(`provider_http_${statusCode}`);
+    this.name = 'ProviderHttpError';
+    this.statusCode = statusCode;
+  }
+}
+
 export function inferShoppingAttributes(text = '', condition = 'new') {
   const normalized = String(text);
   const sizes = [...new Set([...normalized.matchAll(/\b(\d{2}(?:\.\d)?)\s*cm\b/gi)].map((match) => `${match[1]}cm`))];
@@ -110,7 +118,7 @@ async function fetchJson(fetchImpl, request) {
     headers: request.headers,
     signal: typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(5000) : undefined,
   });
-  if (!response.ok) throw new Error(`provider_http_${response.status}`);
+  if (!response.ok) throw new ProviderHttpError(response.status);
   return response.json();
 }
 
@@ -121,6 +129,14 @@ function providerEvent(logger, provider, outcome, startedAt, statusCode) {
     ...(statusCode === undefined ? {} : { statusCode }),
     durationMs: Math.max(0, Date.now() - startedAt),
   });
+}
+
+function failureResult(logger, provider, startedAt, error) {
+  const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : undefined;
+  const rateLimited = statusCode === 429;
+  const outcome = rateLimited ? 'rate_limited' : 'error';
+  providerEvent(logger, provider, outcome, startedAt, statusCode);
+  return { items: [], provider: { name: provider, status: rateLimited ? 'rate_limited' : 'error' } };
 }
 
 async function runRakuten(watch, env, fetchImpl, logger) {
@@ -144,9 +160,8 @@ async function runRakuten(watch, env, fetchImpl, logger) {
       items: (data.items || []).map(normalizeRakutenItem),
       provider: { name: 'rakuten', status: 'ok' },
     };
-  } catch {
-    providerEvent(logger, 'rakuten', 'error', startedAt);
-    return { items: [], provider: { name: 'rakuten', status: 'error' } };
+  } catch (error) {
+    return failureResult(logger, 'rakuten', startedAt, error);
   }
 }
 
@@ -168,9 +183,8 @@ async function runYahoo(watch, env, fetchImpl, logger) {
       items: (data.hits || []).map(normalizeYahooItem),
       provider: { name: 'yahoo', status: 'ok' },
     };
-  } catch {
-    providerEvent(logger, 'yahoo', 'error', startedAt);
-    return { items: [], provider: { name: 'yahoo', status: 'error' } };
+  } catch (error) {
+    return failureResult(logger, 'yahoo', startedAt, error);
   }
 }
 
