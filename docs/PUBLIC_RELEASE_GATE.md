@@ -18,6 +18,17 @@ A release candidate must use an exact commit whose GitHub Actions `release-gates
 
 The automated suite must cover product/compatibility behavior plus the non-functional boundary work: sanitized telemetry, input bounds, controlled server errors, provider isolation/concurrency, safe URLs, deletion behavior, and release/compliance checks.
 
+## Product-promise gate
+
+Mikke must not publicly promise autonomous monitoring/notification unless that behavior actually exists in the release candidate.
+
+Current implementation still lists scheduled monitoring and notification controls as later product work. Therefore, before PUBLIC_BETA, choose and verify one of these paths:
+
+- [ ] **Full Watch promise:** scheduled monitoring plus a real notification delivery path are implemented, rate-controlled, tested, and covered by Privacy/Terms/incident handling; or
+- [ ] **Manual-check beta:** all public copy, onboarding, tagline, empty states, README, and release notes clearly state that checks are user-initiated and no background monitoring/notification is provided.
+
+Until one path is complete, PUBLIC_BETA remains blocked because product copy must not overstate behavior.
+
 ## Release-candidate environment
 
 - Git repository: `vongolebianco7/mikke`
@@ -89,7 +100,7 @@ Reviewer: _pending_
 - [ ] Watch creation works
 - [ ] Watch edit / save / reload works
 - [ ] Every enabled live provider works
-- [ ] Provider attribution is visible and unmodified
+- [ ] Provider attribution is visible, unmodified, and limited to providers actually contacted for displayed live data
 - [ ] Demo mode is unmistakable
 - [ ] Product links open safely
 - [ ] Privacy notice is reachable
@@ -130,6 +141,7 @@ These are acceptable only if documented and verified to degrade safely:
 
 ```text
 AUTO_GATE == PASS
+AND PRODUCT_PROMISE_GATE == PASS
 AND MANUAL_GATE == PASS
 AND PROD_SMOKE == PASS
 => PUBLIC_BETA = GO
@@ -140,4 +152,4 @@ otherwise
 
 Current decision: **PUBLIC_BETA = BLOCKED**
 
-Reason: Gate A must be re-recorded at the final integrated release-candidate HEAD, while operator provider approval/credentials, a stable RC environment, iPhone/live-provider verification, incident notification path, repository protection review, and production smoke remain incomplete.
+Reason: product-promise alignment (scheduled monitoring/notification vs manual-check beta) is unresolved, provider attribution behavior requires correction/verification, and operator provider approval/credentials, a stable RC environment, iPhone/live-provider verification, incident notification path, repository protection review, and production smoke remain incomplete.
