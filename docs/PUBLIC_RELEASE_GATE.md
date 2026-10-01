@@ -4,7 +4,7 @@ Status: INTERNAL_BETA
 
 > `merge != publish`
 
-PUBLIC_BETA is allowed only when Gate A, Gate B, and Gate C all pass.
+PUBLIC_BETA is allowed only when Product Promise Gate, Gate A, Gate B, and Gate C all pass.
 
 ## Gate A — Automated CI
 
@@ -16,17 +16,16 @@ A release candidate must use an exact commit whose GitHub Actions `release-gates
 - [ ] `nonfunctional-static` passes
 - [ ] `build` passes
 
-The automated suite must cover product/compatibility behavior plus sanitized telemetry, input bounds, controlled server errors, provider isolation/concurrency, explicit provider enablement, upstream 429 classification, minimal alert thresholds, safe URLs, deletion behavior, deployment security headers, dependency locking and release/compliance checks.
+The automated suite must cover product/compatibility behavior plus sanitized telemetry, input bounds, controlled server errors, provider isolation/concurrency, explicit provider enablement, upstream 429 classification, minimal alert thresholds, safe URLs, browser-storage failure behavior, contacted-provider attribution, deployment security headers, dependency locking and release/compliance checks.
 
 ## Release-candidate environment
 
 - Git repository: `vongolebianco7/mikke`
 - Feature branch: `feat/mikke-mvp`
-- Gate A tested commit SHA: _pending_
+- Gate A tested commit SHA: _pending final integrated HEAD_
 - Deployed release-candidate commit SHA: _pending_
 - Validated PUBLIC_BETA release-candidate URL: _pending_
 - [ ] The **deployed SHA exactly matches** the Gate A tested SHA.
-- Previous Vercel feature deployment was rate-limited; that is not valid Gate C evidence.
 - A stable release-candidate environment must exist before Gate C can pass.
 - Existing `main` deployment remains separate from the feature branch until explicit release approval.
 
@@ -34,9 +33,25 @@ The automated suite must cover product/compatibility behavior plus sanitized tel
 
 Before PUBLIC_BETA, the deployed product copy and actual behavior must agree.
 
-- [ ] If scheduled/background monitoring and user notification are not implemented, the UI must not imply that Mikke autonomously watches conditions while the user is away.
-- [ ] If UI uses terms such as `通知` / `見張ります`, the actual delivery/monitoring behavior is clearly explained.
-- [ ] Any accepted manual-check beta limitation is visible in onboarding/core UI and documentation, not only in repository notes.
+### Code/document baseline
+
+- [x] Core UI no longer claims that Mikke autonomously watches conditions while the user is away.
+- [x] Current beta copy says Watch results are obtained through explicit `今すぐ確認` / manual checking.
+- [x] `通知条件` was replaced with `変化条件` in the current beta flow.
+- [x] Settings explicitly states that background scheduled checks and external push notification are not currently provided.
+- [x] README documents the current beta as manual-check and lists scheduled/background monitoring and external notification as later work.
+- [x] Watch-save storage failure has explicit user-facing copy rather than silently claiming success.
+- [x] Provider credit rendering is conditional instead of always rendering every provider credit.
+
+### Release-candidate verification still required
+
+- [ ] Deployed onboarding/core UI visibly preserves the manual-check limitation.
+- [ ] No deployed copy, icon, or interaction implies push/background delivery that is not active.
+- [ ] Provider attribution is visually verified against the actual providers contacted and each provider's current prescribed form/placement.
+- [ ] Browser storage failure behavior is exercised on the release-blocking client where feasible.
+- [ ] Current iPhone Safari + VoiceOver/basic accessibility verification passes.
+
+Scheduled/background monitoring and external notification may be implemented later, but until then they must not be marketed as current behavior.
 
 ## Gate B — Manual compliance and operations
 
@@ -82,6 +97,7 @@ Reviewer: _pending_
 - [ ] App loads in current iPhone Safari
 - [ ] Watch creation works
 - [ ] Watch edit / save / reload works
+- [ ] Watch save failure is visible rather than presented as success
 - [ ] Every enabled live provider works
 - [ ] Provider attribution is visible, unmodified, and limited to contacted providers
 - [ ] Demo mode is unmistakable
@@ -89,6 +105,7 @@ Reviewer: _pending_
 - [ ] Privacy notice is reachable
 - [ ] Terms/disclaimer is reachable
 - [ ] Delete-all-data clears only Mikke-owned local data
+- [ ] VoiceOver/basic accessible names, focus behavior, readable text, and tap targets pass the core flow
 
 ### Security / deployment response
 
@@ -134,9 +151,10 @@ Reviewer: _pending_
 
 These are acceptable only if documented and verified to degrade safely:
 
+- **Current product flow is manual-check:** no scheduled/background Watch execution and no external push delivery.
 - Serverless in-memory rate limiting, in-flight de-duplication, and the in-process alert evaluator are per runtime/process, not globally consistent distributed controls.
 - Provider availability is outside Mikke control.
-- Watch/history data is browser-local with no Mikke cloud backup or multi-device sync.
+- Watch/history/decision data is browser-local with no Mikke cloud backup or multi-device sync.
 - Initial incident monitoring may use hosting logs plus one operator notification path rather than paid APM.
 
 ## Decision
@@ -155,4 +173,4 @@ otherwise
 
 Current decision: **PUBLIC_BETA = BLOCKED**
 
-Reason: final integrated Gate A evidence, product-promise alignment, provider approvals/credentials/enable flags, stable RC environment, iPhone/live-provider verification, log retention/access verification, incident notification path, repository protection review, exact deployed-SHA evidence, and production smoke remain incomplete.
+Reason: final integrated Gate A evidence, deployed Product Promise verification, provider approvals/credentials/enable flags, stable RC environment, iPhone/VoiceOver/live-provider verification, log retention/access verification, incident notification path, repository protection review, exact deployed-SHA evidence, and production smoke remain incomplete.
