@@ -18,6 +18,10 @@ function cleanQuery(watch) {
   return String(watch?.rawQuery || watch?.title || '').trim();
 }
 
+function enabled(value) {
+  return value === 'true';
+}
+
 export function inferShoppingAttributes(text = '', condition = 'new') {
   const normalized = String(text);
   const sizes = [...new Set([...normalized.matchAll(/\b(\d{2}(?:\.\d)?)\s*cm\b/gi)].map((match) => `${match[1]}cm`))];
@@ -121,6 +125,10 @@ function providerEvent(logger, provider, outcome, startedAt, statusCode) {
 
 async function runRakuten(watch, env, fetchImpl, logger) {
   const startedAt = Date.now();
+  if (!enabled(env.MIKKE_RAKUTEN_ENABLED)) {
+    providerEvent(logger, 'rakuten', 'disabled', startedAt);
+    return { items: [], provider: { name: 'rakuten', status: 'disabled' } };
+  }
   if (!env.RAKUTEN_APPLICATION_ID || !env.RAKUTEN_ACCESS_KEY) {
     providerEvent(logger, 'rakuten', 'not_configured', startedAt);
     return { items: [], provider: { name: 'rakuten', status: 'not_configured' } };
@@ -144,6 +152,10 @@ async function runRakuten(watch, env, fetchImpl, logger) {
 
 async function runYahoo(watch, env, fetchImpl, logger) {
   const startedAt = Date.now();
+  if (!enabled(env.MIKKE_YAHOO_ENABLED)) {
+    providerEvent(logger, 'yahoo', 'disabled', startedAt);
+    return { items: [], provider: { name: 'yahoo', status: 'disabled' } };
+  }
   if (!env.YAHOO_APP_ID) {
     providerEvent(logger, 'yahoo', 'not_configured', startedAt);
     return { items: [], provider: { name: 'yahoo', status: 'not_configured' } };
