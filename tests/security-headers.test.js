@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const config = JSON.parse(fs.readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
-const headers = Object.fromEntries(config.headers[0].headers.map(({ key, value }) => [key.toLowerCase(), value]));
+const configUrl = new URL('../vercel.json', import.meta.url);
+const exists = fs.existsSync(configUrl);
+const config = exists ? JSON.parse(fs.readFileSync(configUrl, 'utf8')) : { headers: [{ headers: [] }] };
+const headers = Object.fromEntries((config.headers?.[0]?.headers || []).map(({ key, value }) => [key.toLowerCase(), value]));
 
 test('repo owns a restrictive CSP without unsafe-eval', () => {
+  assert.equal(exists, true, 'vercel.json must be committed');
   const csp = headers['content-security-policy'];
   assert.match(csp, /default-src 'self'/);
   assert.match(csp, /script-src 'self'/);
