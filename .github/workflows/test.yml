@@ -30,6 +30,7 @@ jobs:
           node --check src/connectors/runWatchCheck.js
           node --check src/server/requestGuard.js
           node --check src/server/shoppingProviders.js
+          node --check src/server/operationalTelemetry.js
           node --check api/shopping-search.js
       - name: Unit tests
         run: npm run test:unit
@@ -55,6 +56,15 @@ jobs:
         with:
           node-version: '22'
       - run: npm run compliance
+
+  nonfunctional-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run nonfunctional
 
   build:
     runs-on: ubuntu-latest
