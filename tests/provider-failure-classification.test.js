@@ -21,9 +21,10 @@ test('upstream 429 is classified separately and retains status without retry', a
     { name: 'rakuten', status: 'disabled' },
     { name: 'yahoo', status: 'rate_limited' },
   ]);
-  assert.deepEqual(events.find((event) => event.provider === 'yahoo'), {
-    provider: 'yahoo', outcome: 'rate_limited', statusCode: 429, durationMs: 0,
-  });
+  const event = events.find((candidate) => candidate.provider === 'yahoo');
+  assert.equal(event.outcome, 'rate_limited');
+  assert.equal(event.statusCode, 429);
+  assert.equal(Number.isFinite(event.durationMs) && event.durationMs >= 0, true);
 });
 
 test('upstream 5xx is classified as provider error with status and no retry', async () => {
@@ -31,7 +32,7 @@ test('upstream 5xx is classified as provider error with status and no retry', as
   const events = [];
   const result = await searchShoppingProviders(watch, {
     env: { MIKKE_YAHOO_ENABLED: 'true', YAHOO_APP_ID: 'y-app' },
-    logger: { provider: (event) => events.push({ ...event, durationMs: 0 }) },
+    logger: { provider: (event) => events.push(event) },
     fetchImpl: async () => {
       calls += 1;
       return { ok: false, status: 503, json: async () => ({}) };
