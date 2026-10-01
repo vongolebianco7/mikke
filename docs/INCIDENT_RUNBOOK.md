@@ -8,11 +8,13 @@ Prefer the smallest safe shutdown. A provider-only problem should disable only t
 
 ## Detection thresholds
 
-- **5xx WARN/incident:** >=5 responses in 5 minutes AND >=5% of requests.
-- **429 WARN/incident:** >=5 responses in 5 minutes OR >=10% of requests.
-- **Provider WARN:** 3 consecutive failures.
+- **5xx incident:** >=5 responses in 5 minutes AND >=5% of requests.
+- **Mikke API 429 incident:** >=5 responses in 5 minutes OR >=10% of requests.
+- **Provider WARN:** 3 consecutive `error` / `rate_limited` outcomes.
 - **Provider CRITICAL:** 5 consecutive failures.
 - Suppress repeated notifications for the same unresolved incident for 30 minutes.
+
+`src/server/alertEvaluator.js` pins these threshold semantics for tests and single-process evaluation. Production detection still requires the hosting/runtime events to reach the configured operator alert path; the in-process evaluator is not a durable cross-instance monitor.
 
 ## Response order
 
@@ -22,17 +24,24 @@ Determine only these three things first:
 
 1. Is `/api/shopping-search` itself failing?
 2. Is only Rakuten or only Yahoo failing?
-3. Is the issue rate limiting (Mikke-side or provider-side)?
+3. Is the issue Mikke-side 429 or provider-side 429?
 
-Do not start code changes until the incident is classified.
+Provider-side 429 is emitted as provider outcome `rate_limited` with status code 429. Do not merge it into Mikke's own API rate-limit signal.
 
 ### 2. Contain with the smallest blast radius
 
+Provider runtime kill switches:
+
+- Rakuten: set `MIKKE_RAKUTEN_ENABLED=false`
+- Yahoo: set `MIKKE_YAHOO_ENABLED=false`
+
 Use this shutdown order:
 
-1. Disable the affected provider connector.
+1. Disable the affected provider connector with its runtime flag.
 2. If the problem affects all live shopping providers or the API route, disable live shopping search.
 3. Disable the whole application only if the app itself is unsafe or unusable.
+
+Credentials are not a kill switch and credentials alone do not authorize/enable a provider. Do not delete/rotate valid credentials merely to contain an ordinary provider outage unless credential compromise is suspected.
 
 During containment:
 
@@ -53,19 +62,27 @@ During containment:
 
 #### Provider consecutive failure
 
-1. Provider HTTP outcome and latency.
-2. Credential/config presence and validity.
-3. Endpoint/API version or response-shape change.
-4. Provider usage/rate/attribution/terms change requiring review.
-5. Provider-side service incident.
+1. Provider outcome (`error` vs `rate_limited`), status code and latency.
+2. Runtime enable flag.
+3. Credential/config presence and validity.
+4. Endpoint/API version or response-shape change.
+5. Provider usage/rate/attribution/terms change requiring review.
+6. Provider-side service incident.
 
 #### 429 increase
 
-1. Mikke local limiter outcome.
-2. Duplicate Watch execution / repeated client calls.
-3. Scheduler or accidental loop.
-4. Provider-side rate response.
-5. Unexpected traffic/abuse pattern.
+For Mikke API 429:
+1. local limiter outcome;
+2. duplicate Watch execution / repeated client calls;
+3. scheduler or accidental loop;
+4. unexpected traffic/abuse pattern.
+
+For provider-side 429:
+1. confirm provider `rate_limited` outcome/status 429;
+2. confirm no automatic retry occurred;
+3. inspect request frequency/duplicate execution;
+4. disable only the affected provider if rate remains unsafe;
+5. re-check provider rate/usage terms before increasing traffic.
 
 Do not increase request limits merely to make 429 disappear.
 
@@ -82,13 +99,12 @@ If widespread 5xx or live-search failure remains unexplained, choose safe rollba
 
 ### 5. Staged recovery
 
-Do not restore full operation in one step.
-
-1. One manual live check.
-2. Several live checks covering each enabled provider.
-3. Confirm no secret/query leakage in response or logs.
-4. Observe 5-10 minutes of stable behavior.
-5. Re-enable normal operation.
+1. Confirm provider remains `Approved` before re-enabling its runtime flag.
+2. One manual live check.
+3. Several live checks covering each enabled provider.
+4. Confirm no secret/query leakage in response or logs.
+5. Observe 5-10 minutes of stable behavior.
+6. Re-enable normal operation.
 
 Provider incident recovery requires at least 3 consecutive successful checks; use 5 successes after a CRITICAL incident.
 
@@ -96,16 +112,7 @@ Provider incident recovery requires at least 3 consecutive successful checks; us
 
 ### 6. Resolve and record
 
-Record:
-
-- start/end time;
-- affected route/provider;
-- alert type;
-- user-visible impact;
-- containment action;
-- root cause if known;
-- commit/config change used for recovery;
-- whether a regression test or release-gate update is required.
+Record start/end time, affected route/provider, alert type, user-visible impact, containment action, root cause if known, commit/config change used for recovery, and whether a regression test or release-gate update is required.
 
 Do not record Watch text, provider credentials, or full credential-bearing upstream URLs.
 
@@ -114,10 +121,10 @@ Do not record Watch text, provider credentials, or full credential-bearing upstr
 | Signal | First action | Stop scope | Recovery proof |
 |---|---|---|---|
 | 5xx increase | Check latest deploy/config | Live search or rollback as needed | 5-10 min stable + smoke pass |
-| Rakuten failures | Check Rakuten outcome/config | Rakuten only | 3-5 consecutive successes |
-| Yahoo failures | Check Yahoo outcome/config | Yahoo only | 3-5 consecutive successes |
+| Rakuten failures | Check outcome/config | `MIKKE_RAKUTEN_ENABLED=false` | 3-5 consecutive successes |
+| Yahoo failures | Check outcome/config | `MIKKE_YAHOO_ENABLED=false` | 3-5 consecutive successes |
 | Mikke 429 increase | Check duplicate/loop/local limiter | Slow/stop offending execution path | request rate normal + no excess upstream |
-| Provider 429 | Stop retries / reduce provider traffic | affected provider | provider calls remain under reviewed limit |
+| Provider 429 | Stop traffic escalation; no retry | affected provider only | provider calls remain under reviewed limit |
 
 ## Escalation rule
 
