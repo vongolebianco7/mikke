@@ -24,5 +24,10 @@ export function loadWatches(storage) {
 }
 
 export function saveWatches(storage, watches) {
-  storage.setItem(KEY, JSON.stringify(watches));
+  try {
+    storage.setItem(KEY, JSON.stringify(watches));
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'storage_unavailable' };
+  }
 }
