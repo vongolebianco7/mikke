@@ -39,8 +39,11 @@ requireText('docs/NONFUNCTIONAL_REQUIREMENTS.md', 'merge != publish', 'non-funct
 requireText('docs/NONFUNCTIONAL_REQUIREMENTS.md', '**RTO:**', 'RTO must remain documented');
 requireText('docs/INCIDENT_RUNBOOK.md', 'rollback', 'incident runbook must include rollback');
 requireText('docs/PUBLIC_RELEASE_GATE.md', 'PUBLIC_BETA = BLOCKED', 'public release must remain blocked until manual gates are completed');
-requireText('docs/PUBLIC_RELEASE_GATE.md', 'fault injection', 'release gate must require fault injection');
-requireText('docs/PUBLIC_RELEASE_GATE.md', 'sanitized telemetry', 'release gate must verify sanitized telemetry');
+requireText('docs/PUBLIC_RELEASE_GATE.md', 'Inject a 5xx condition', 'release gate must require 5xx fault injection');
+requireText('docs/PUBLIC_RELEASE_GATE.md', 'Inject consecutive provider failures', 'release gate must require provider-failure injection');
+requireText('docs/PUBLIC_RELEASE_GATE.md', 'Inject 429', 'release gate must require rate-limit injection');
+requireText('docs/PUBLIC_RELEASE_GATE.md', 'Sanitized API/provider outcome telemetry', 'release gate must verify sanitized telemetry');
+requireText('docs/PUBLIC_RELEASE_GATE.md', '`nonfunctional-static` passes', 'Gate A must include the non-functional static job');
 
 if (failures.length) {
   console.error('non-functional check: FAIL');
