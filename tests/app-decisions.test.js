@@ -11,7 +11,8 @@ test('result UI exposes local decision actions and learned suggestions',()=>{
   assert.match(app,/買う/);
   assert.match(app,/もう少し待つ/);
   assert.match(app,/条件変更/);
-  assert.match(app,/監視終了/);
+  assert.match(app,/Watch終了/);
+  assert.doesNotMatch(app,/監視終了/);
 });
 
 test('Today integrates conservative product grouping and provider offers',()=>{
