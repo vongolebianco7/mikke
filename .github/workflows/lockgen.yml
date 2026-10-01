@@ -15,9 +15,9 @@ jobs:
           node-version: '22'
       - name: Generate lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - name: Print lockfile
-        run: |
-          echo LOCKFILE_BASE64_BEGIN
-          base64 -w0 package-lock.json
-          echo
-          echo LOCKFILE_BASE64_END
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: generated-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1
