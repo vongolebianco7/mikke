@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { mountCanonicalComposer } from '../src/canonicalComposerUi.js';
+import { mountInputComposer } from '../src/inputComposerUi.js';
 
 function setup(seedWatch = null) {
   const dom = new JSDOM(`<!doctype html><main id="app"><form id="watch-form" class="composer"><textarea id="query"></textarea><button class="primary" type="submit">保存</button></form></main>`, { url: 'https://example.test/' });
   const { document, Event, KeyboardEvent } = dom.window;
   const form = document.querySelector('#watch-form');
   if (seedWatch) form._mikkeDraft = structuredClone(seedWatch);
-  mountCanonicalComposer(form, { Event });
+  mountInputComposer(form, { Event });
   return { dom, document, form, Event, KeyboardEvent };
 }
 
@@ -105,7 +105,7 @@ test('condition role can be changed in-place and publishes the same Watch draft'
 });
 
 test('mobile composer exposes 44px targets, bottom-sheet layout, reduced motion and no horizontal core scroll', async () => {
-  const css = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../canonical-composer.css', import.meta.url), 'utf8'));
+  const css = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../input-composer.css', import.meta.url), 'utf8'));
   assert.match(css, /min-height:\s*44px/);
   assert.match(css, /position:\s*fixed/);
   assert.match(css, /bottom:\s*0/);
