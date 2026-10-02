@@ -46,7 +46,7 @@ The corpus must include at least the following families:
 - pet food / pet goods
 - hobby / collectibles / games
 - used cars / new-car discovery / vehicle accessories
-- tickets / event goods where applicable
+- tickets / event goods
 - flights
 - hotels
 
@@ -216,7 +216,7 @@ For enumerations, use choices/search instead of a free text box. Numeric fields 
 When there are many conditions:
 
 - cards remain one compact vertical list
-- conditions may be grouped by role or semantic section when >8 cards
+- at 9 or more cards, group in this fixed order: 必須, 除外, できれば, 許容, 比較, 変化条件
 - a sticky summary shows the total and unresolved count
 - the user can search/filter existing conditions
 
@@ -546,12 +546,14 @@ Before replacing the current composer in the Preview RC:
 
 Existing saved Watches must continue to open.
 
-Migration principles:
+Migration rules:
 
-- map current `domainConditions`, `compatibilityConditions`, and triggers into the new card representation
-- do not rewrite stored data merely by opening the Watch
-- save using a backwards-compatible schema revision or explicit migration version
-- preserve unknown legacy fields
+- the first implementation does **not** change persisted Watch schema versions solely for the new UI
+- an adapter maps current `domainConditions`, `compatibilityConditions`, triggers, and legacy fields into the composer draft
+- the adapter maps the composer draft back into the existing persisted Watch structures on save
+- opening a Watch never rewrites stored data by itself
+- unknown legacy fields are preserved through open/edit/save round trips
+- if a future composer capability genuinely requires new persisted data, that schema migration is a separate reviewed task with explicit versioning and compatibility tests
 
 The current composer remains available behind the development branch until corpus, unit, integration, and iPhone gates pass.
 
