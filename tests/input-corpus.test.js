@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { interpretInput } from '../src/domain/interpretInput.js';
-import { inputComposerCorpus as corpus } from './fixtures/inputComposerCorpus.js';
+import { inputComposerCorpus as baseCorpus } from './fixtures/inputComposerCorpus.js';
+import { extraInputComposerFamilySpecifics } from './fixtures/inputComposerFamilySpecifics.js';
+
+const corpus = [...baseCorpus, ...extraInputComposerFamilySpecifics];
 
 test('input composer corpus contains at least 800 diverse scenarios', () => {
   assert.ok(corpus.length >= 800, `expected >=800 scenarios, got ${corpus.length}`);
