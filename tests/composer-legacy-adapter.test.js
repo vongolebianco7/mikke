@@ -70,6 +70,20 @@ test('flight and hotel structures survive round trip', () => {
   }
 });
 
+test('switching away from flight clears flight-only state and updates legacy type', () => {
+  const original = {
+    id:'switch', type:'flight', domain:'flight', target:{title:'東京からホノルル'},
+    travelIntent:{tripPattern:'round_trip'},
+    flightFilters:[{fieldId:'nonstopOnly',operator:'is_true',value:true,role:'required'}],
+  };
+  const draft = { domain:'hotel', target:{title:'軽井沢ホテル'}, conditions:[], unresolvedFragments:[], metadata:{} };
+  const watch = watchFromDraft(draft, original);
+  assert.equal(watch.domain, 'hotel');
+  assert.equal(watch.type, 'hotel');
+  assert.equal('travelIntent' in watch, false);
+  assert.equal('flightFilters' in watch, false);
+});
+
 test('opening adapter is pure and does not mutate the source Watch', () => {
   const original = { id:'pure', domain:'fashion', domainConditions:[{fieldId:'color',operator:'eq',value:'gray',role:'required'}] };
   const before = structuredClone(original);
