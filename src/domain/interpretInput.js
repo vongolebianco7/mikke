@@ -123,9 +123,20 @@ function dedupeByAttribute(proposals) {
   return result;
 }
 
-function normalizeDomainPriceAttributes(proposals, domain) {
-  if (domain !== 'used_car') return proposals;
-  return proposals.map((proposal) => proposal.attributeId === 'price' ? { ...proposal, attributeId: 'totalPrice' } : proposal);
+function isVehicleAccessory(parsed) {
+  return (parsed?.compatibilityConditions || []).some((item) => item?.subjectType === 'accessory' && item?.target?.type === 'vehicle');
+}
+
+function canonicalPriceAttribute(parsed, domain) {
+  return domain === 'used_car' && !isVehicleAccessory(parsed) ? 'totalPrice' : 'price';
+}
+
+function normalizeDomainPriceAttributes(proposals, parsed, domain) {
+  const priceAttribute = canonicalPriceAttribute(parsed, domain);
+  return proposals.map((proposal) => {
+    if (!['price', 'totalPrice'].includes(proposal.attributeId)) return proposal;
+    return { ...proposal, attributeId: priceAttribute };
+  });
 }
 
 export function interpretInput(raw, context = {}) {
@@ -141,11 +152,11 @@ export function interpretInput(raw, context = {}) {
     let conditionProposals = baseConditions.map(fromDomainCondition);
     conditionProposals.push(...(Array.isArray(parsed?.compatibilityConditions) ? parsed.compatibilityConditions.map(fromCompatibility) : []));
     conditionProposals.push(...(Array.isArray(parsed?.triggers) ? parsed.triggers.map(fromTrigger) : []));
-    conditionProposals = normalizeDomainPriceAttributes(conditionProposals, parsedDomain);
+    conditionProposals = normalizeDomainPriceAttributes(conditionProposals, parsed, parsedDomain);
 
     const approximatePrice = parseApproximatePrice(text);
     if (approximatePrice !== undefined) {
-      const approximatePriceAttribute = parsedDomain === 'used_car' ? 'totalPrice' : 'price';
+      const approximatePriceAttribute = canonicalPriceAttribute(parsed, parsedDomain);
       conditionProposals = conditionProposals.filter((item) => !['price', 'totalPrice', 'landed_price'].includes(item.attributeId));
       conditionProposals.push({
         id: 'text-approx-price', attributeId: approximatePriceAttribute, operator: 'eq', value: approximatePrice,
