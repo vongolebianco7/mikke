@@ -40,6 +40,28 @@ function contradictionConflicts(conditions) {
   return conflicts;
 }
 
+function missingValue(value) {
+  return value == null || (typeof value === 'string' && value.trim() === '');
+}
+
+function incompleteConflicts(conditions) {
+  const conflicts = [];
+  for (const condition of conditions) {
+    let incomplete = false;
+    if (condition.operator === 'range') {
+      incomplete = !Array.isArray(condition.value)
+        || condition.value.length !== 2
+        || condition.value.some(missingValue);
+    } else if (Array.isArray(condition.value)) {
+      incomplete = condition.value.length === 0 || condition.value.some(missingValue);
+    } else {
+      incomplete = missingValue(condition.value);
+    }
+    if (incomplete) conflicts.push({ type: 'incomplete_condition', attributeId: condition.attributeId, id: condition.id });
+  }
+  return conflicts;
+}
+
 export function createComposerDraftStore(initialDraft = {}) {
   let draft = {
     target: clone(initialDraft.target || {}),
@@ -98,7 +120,10 @@ export function createComposerDraftStore(initialDraft = {}) {
       return snapshot();
     },
     validate() {
-      const conflicts = contradictionConflicts(draft.conditions);
+      const conflicts = [
+        ...incompleteConflicts(draft.conditions),
+        ...contradictionConflicts(draft.conditions),
+      ];
       return {
         saveable: conflicts.length === 0,
         conflicts,
