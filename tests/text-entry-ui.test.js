@@ -10,16 +10,17 @@ test('composer exposes exactly one canonical primary text-entry contract',()=>{
   assert.match(source,/何を探していますか？/);
   assert.match(source,/data-composer-text/);
   assert.match(source,/data-composer-interpretation/);
-  assert.match(source,/controller\.applyText\(input\.value\)/);
+  assert.match(source,/input\.addEventListener\('input',\(\)=>applyText\(input\.value\)\)/);
   assert.doesNotMatch(source,/data-quick-text-input/);
   assert.doesNotMatch(source,/data-text-helper-apply/);
 });
 
 test('typing immediately publishes structured state and visible interpretation',()=>{
-  assert.match(source,/form\._mikkeDraft=model\.watch/);
-  assert.match(source,/submitStructured='true'/);
+  assert.match(source,/form\._mikkeDraft=watch/);
+  assert.match(source,/form\.dataset\.submitStructured='true'/);
   assert.match(source,/aria-live="polite"/);
-  assert.match(source,/recognizedLines\(model\)/);
+  assert.match(source,/interpretation\.textContent=/);
+  assert.match(source,/mergeInterpretation\(current,interpretation\)/);
 });
 
 test('legacy promotion layer is not part of the loaded app',()=>{
@@ -32,6 +33,7 @@ test('legacy promotion layer is not part of the loaded app',()=>{
 test('primary mobile controls meet the iPhone-first layout contract',()=>{
   assert.match(css,/@media\(max-width:420px\)/);
   assert.match(css,/min-height:44px/);
-  assert.match(css,/min-height:118px/);
-  assert.match(css,/grid-template-columns:1fr/);
+  assert.match(css,/font-size:16px/);
+  assert.match(css,/padding:8px 16px calc\(18px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(css,/overflow-x:hidden/);
 });
