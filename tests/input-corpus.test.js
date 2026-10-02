@@ -21,12 +21,17 @@ test('corpus diversity is not produced by cloning the same templates across fami
   assert.ok(templateKeys.size >= 100, `expected >=100 distinct template shapes, got ${templateKeys.size}`);
 
   const families = [...new Set(corpus.map((item) => item.family))];
+  const familySpecificCorpus = corpus.filter((item) => item.familySpecific === true);
+  assert.ok(familySpecificCorpus.length >= 240, `expected >=240 family-specific scenarios, got ${familySpecificCorpus.length}`);
+  assert.ok(familySpecificCorpus.length / corpus.length >= 0.20, 'at least 20% of the corpus must be family-specific rather than shared-template expansion');
+
   for (const family of families) {
-    const familySpecific = corpus.filter((item) => item.family === family && item.familySpecific === true);
-    assert.ok(familySpecific.length >= 4, `${family}: expected at least 4 family-specific scenarios, got ${familySpecific.length}`);
+    const familySpecific = familySpecificCorpus.filter((item) => item.family === family);
+    assert.ok(familySpecific.length >= 12, `${family}: expected at least 12 family-specific scenarios, got ${familySpecific.length}`);
+    assert.ok(new Set(familySpecific.map((item) => item.input)).size >= 12, `${family}: family-specific scenarios must be genuinely distinct inputs`);
   }
 
-  const specificInputs = corpus.filter((item) => item.familySpecific).map((item) => item.input);
+  const specificInputs = familySpecificCorpus.map((item) => item.input);
   assert.equal(new Set(specificInputs).size, specificInputs.length, 'family-specific inputs must be unique');
 });
 
