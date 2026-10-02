@@ -107,7 +107,7 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
   let originalWatch=form._mikkeDraft?structuredClone(form._mikkeDraft):(safeParse(seedRaw)||defaultWatch())
   let store=createComposerDraftStore(draftFromWatch(originalWatch))
   let activeSheet=null
-  let sheetOriginId=null
+  let sheetOrigin=null
 
   const root=form.ownerDocument.createElement('section')
   root.className='canonical-composer'
@@ -139,7 +139,14 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
     return unresolved?`条件 ${count}件・未整理 ${unresolved}件`:`条件 ${count}件`
   }
 
-  function render({restoreFocus=false}={}){
+  function sheetElement(){return root.querySelector('[data-condition-sheet],[data-add-condition-sheet]')}
+  function focusablesIn(sheet){
+    if(!sheet)return[]
+    return [...sheet.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]')].filter((element)=>!element.hidden)
+  }
+
+  function render({restoreFocus=false,focusSheet=false}={}){
+    const origin=sheetOrigin?{...sheetOrigin}:null
     const {draft,watch}=publish()
     const workspace=root.querySelector('[data-condition-workspace]')
     const target=watch.target?.title||draft.target?.title||''
@@ -156,7 +163,19 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
       const options=activeSheet.options||recommendedConditions({domain:draft.domain,categoryId:draft.categoryId,subcategoryId:draft.subcategoryId,targetText:target||input.value})
       host.innerHTML=addConditionSheetHtml(options)
     }else host.innerHTML=''
-    if(restoreFocus&&sheetOriginId){queueMicrotask(()=>root.querySelector(`[data-condition-id="${sheetOriginId.replace(/"/g,'\\"')}"]`)?.focus())}
+    if(focusSheet&&activeSheet){
+      queueMicrotask(()=>{
+        const sheet=sheetElement()
+        const targetControl=activeSheet?.type==='add'?sheet?.querySelector('[data-condition-search]'):sheet?.querySelector('[data-condition-role]')
+        targetControl?.focus()
+      })
+    }
+    if(restoreFocus&&origin){
+      queueMicrotask(()=>{
+        if(origin.type==='add')root.querySelector('[data-add-condition]')?.focus()
+        else if(origin.type==='condition')root.querySelector(`[data-condition-id="${origin.id.replace(/"/g,'\\"')}"]`)?.focus()
+      })
+    }
   }
 
   function applyText(raw){
@@ -175,17 +194,18 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
     const merged=mergeInterpretation(current,interpretation)
     store=createComposerDraftStore(merged)
     activeSheet=null
+    sheetOrigin=null
     render()
   }
 
-  function closeSheet(){activeSheet=null;render({restoreFocus:true});sheetOriginId=null}
+  function closeSheet(){activeSheet=null;render({restoreFocus:true});sheetOrigin=null}
 
   input.addEventListener('input',()=>applyText(input.value))
   root.addEventListener('click',(event)=>{
     const card=event.target.closest('[data-condition-card]')
-    if(card){sheetOriginId=card.dataset.conditionId;activeSheet={type:'condition',id:card.dataset.conditionId};render();return}
+    if(card){sheetOrigin={type:'condition',id:card.dataset.conditionId};activeSheet={type:'condition',id:card.dataset.conditionId};render({focusSheet:true});return}
     if(event.target.closest('[data-add-condition]')){
-      const draft=store.getDraft();activeSheet={type:'add',options:recommendedConditions({domain:draft.domain,categoryId:draft.categoryId,subcategoryId:draft.subcategoryId,targetText:draft.target?.title||input.value})};render();return
+      const draft=store.getDraft();sheetOrigin={type:'add'};activeSheet={type:'add',options:recommendedConditions({domain:draft.domain,categoryId:draft.categoryId,subcategoryId:draft.subcategoryId,targetText:draft.target?.title||input.value})};render({focusSheet:true});return
     }
     if(event.target.closest('[data-close-sheet]')||event.target.matches('[data-sheet-backdrop]')){closeSheet();return}
     const remove=event.target.closest('[data-remove-unresolved]')
@@ -196,7 +216,7 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
     const option=event.target.closest('[data-condition-option]')
     if(option){
       const draft=store.getDraft();const definition=getConditionDefinition(draft.domain,option.dataset.attributeId,draft.subcategoryId)
-      if(definition){const condition=defaultCondition(definition);store.upsertCondition(condition);const saved=store.getDraft().conditions.find((item)=>item.attributeId===condition.attributeId&&semanticLane(item)===semanticLane(condition));activeSheet={type:'condition',id:saved?.id||condition.id};render()}
+      if(definition){const condition=defaultCondition(definition);store.upsertCondition(condition);const saved=store.getDraft().conditions.find((item)=>item.attributeId===condition.attributeId&&semanticLane(item)===semanticLane(condition));activeSheet={type:'condition',id:saved?.id||condition.id};render({focusSheet:true})}
     }
   })
 
@@ -233,7 +253,16 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
     }
   })
 
-  root.addEventListener('keydown',(event)=>{if(event.key==='Escape'&&activeSheet){event.preventDefault();closeSheet()}})
+  root.addEventListener('keydown',(event)=>{
+    if(!activeSheet)return
+    if(event.key==='Escape'){event.preventDefault();closeSheet();return}
+    if(event.key!=='Tab')return
+    const focusables=focusablesIn(sheetElement())
+    if(!focusables.length){event.preventDefault();return}
+    const first=focusables[0],last=focusables.at(-1),active=root.ownerDocument.activeElement
+    if(event.shiftKey&&active===first){event.preventDefault();last.focus()}
+    else if(!event.shiftKey&&active===last){event.preventDefault();first.focus()}
+  })
   form.addEventListener('submit',()=>publish(),true)
 
   const controller={
