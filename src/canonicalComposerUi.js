@@ -100,6 +100,14 @@ function defaultCondition(definition){
   return {id:`manual-${definition.attributeId}-${Date.now()}`,attributeId:definition.attributeId,operator,value:'',unit:definition.unit,role:'required',supportState:'confirmed',source:'manual',manuallyEdited:true}
 }
 
+function validationMessage(validation){
+  const conflicts=validation?.conflicts||[]
+  const messages=[]
+  if(conflicts.some((item)=>item.type==='incomplete_condition'))messages.push('未設定の条件があります。値を入力・選択するか、不要なら条件を削除してください。')
+  if(conflicts.some((item)=>item.type==='contradictory_bounds'))messages.push('条件が矛盾しています。下限と上限を見直してください。')
+  return messages.join(' ')
+}
+
 export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={}){
   if(!form||form.dataset.canonicalComposer==='true')return form?._canonicalController||null
   const hidden=form.querySelector('#query')
@@ -112,7 +120,7 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
   const root=form.ownerDocument.createElement('section')
   root.className='canonical-composer'
   root.dataset.canonicalComposerRoot=''
-  root.innerHTML=`<div class="canonical-entry"><label><b>何を探していますか？</b><textarea rows="3" data-composer-text placeholder="例：996のグレー、24.5cm、1万円以下。中古はなし"></textarea></label><div class="canonical-interpretation" data-composer-interpretation aria-live="polite"></div></div><section class="condition-workspace" data-condition-workspace></section><button type="button" class="add-condition" data-add-condition>＋ 条件から追加</button><div data-composer-sheet-host></div>`
+  root.innerHTML=`<div class="canonical-entry"><label><b>何を探していますか？</b><textarea rows="3" data-composer-text placeholder="例：996のグレー、24.5cm、1万円以下。中古はなし"></textarea></label><div class="canonical-interpretation" data-composer-interpretation aria-live="polite"></div></div><section class="condition-workspace" data-condition-workspace></section><div class="composer-warning" data-composer-validation aria-live="polite" hidden></div><button type="button" class="add-condition" data-add-condition>＋ 条件から追加</button><div data-composer-sheet-host></div>`
   form.insertBefore(root,form.firstChild)
   form.dataset.canonicalComposer='true'
   const input=root.querySelector('[data-composer-text]')
@@ -130,6 +138,8 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
     const validation=store.validate()
     const submit=form.querySelector('button[type="submit"]')
     if(submit)submit.disabled=!validation.saveable||(!watch.rawQuery&&!watch.target?.title)
+    const feedback=root.querySelector('[data-composer-validation]')
+    if(feedback){const message=validationMessage(validation);feedback.textContent=message;feedback.hidden=!message}
     return {draft,watch,validation}
   }
 
