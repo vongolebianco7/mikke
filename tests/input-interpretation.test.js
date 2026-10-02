@@ -60,6 +60,23 @@ test('merge keeps unrelated manual edits and adds new parser proposals', () => {
   assert.ok(merged.conditions.some((item) => item.attributeId === 'price'));
 });
 
+test('merge keeps search and change conditions on the same attribute in separate lanes', () => {
+  const draft = {
+    domain: 'fashion',
+    conditions: [{ id: 'hard-price', attributeId: 'price', operator: 'lte', value: 10000, role: 'required', supportState: 'confirmed', source: 'text', manuallyEdited: false }],
+    unresolvedFragments: [],
+  };
+  const interpretation = {
+    conditionProposals: [{ id: 'price-change', attributeId: 'price', operator: 'relative_change', value: undefined, role: 'change', supportState: 'confirmed', source: 'text', manuallyEdited: false }],
+    unresolvedFragments: [],
+  };
+  const merged = mergeInterpretation(draft, interpretation);
+  const prices = merged.conditions.filter((item) => item.attributeId === 'price');
+  assert.equal(prices.length, 2);
+  assert.ok(prices.some((item) => item.role === 'required'));
+  assert.ok(prices.some((item) => item.role === 'change'));
+});
+
 test('low-confidence parser proposal cannot overwrite a manually edited condition', () => {
   const draft = {
     domain: 'fashion',
