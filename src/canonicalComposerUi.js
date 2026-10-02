@@ -1,74 +1,207 @@
-import { createComposerDraftStore } from './domain/composerDraftStore.js';
+import { parseWatchQuery } from './domain/parseWatch.js';
 import { interpretInput } from './domain/interpretInput.js';
 import { mergeInterpretation } from './domain/mergeInterpretation.js';
-import { parseWatchQuery } from './domain/parseWatch.js';
+import { createComposerDraftStore } from './domain/composerDraftStore.js';
 import { draftFromWatch, watchFromDraft } from './domain/composerLegacyAdapter.js';
-import { getConditionDefinition, searchConditionDefinitions, recommendedConditions } from './domain/conditionCatalog.js';
-
-const ROLE_LABELS={required:'必須',preferred:'できれば',excluded:'除外',allowed:'許容',comparison:'比較',change:'変化条件'};
-const OPERATOR_LABELS={eq:'一致',neq:'除外',gte:'以上',lte:'以下',range:'範囲',one_of:'いずれか',contains:'含む',not_contains:'含まない',boolean:'有無',compatible_with:'適合',changed_to:'変化したら',relative_change:'前回から変化',rank:'比較優先'};
-const VALUE_LABELS={white:'白',black:'黒',gray:'グレー',navy:'ネイビー',beige:'ベージュ',red:'赤',blue:'青',new:'新品',display:'展示品',open_box:'未使用開封品',used:'中古'};
+import { getConditionDefinition, recommendedConditions, searchConditionDefinitions } from './domain/conditionCatalog.js';
+import { ROLE_LABELS, OPERATOR_LABELS, conditionLabel, conditionValueLabel, editableValue } from './composer/conditionPresentation.js';
 
 function esc(value){return String(value??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function option(value,label,current){return `<option value="${esc(value)}"${value===current?' selected':''}>${esc(label)}</option>`}
-function definitionFor(draft,condition){return getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)}
-function labelFor(draft,condition){if(condition.attributeId?.startsWith('compatibility:')||condition.attributeId==='compatibility')return'互換性・適合';return definitionFor(draft,condition)?.label||({price:'価格',totalPrice:'支払総額',size:'サイズ',color:'色',condition:'商品の状態',availability:'在庫・空き'}[condition.attributeId]||condition.attributeId||'条件')}
-function displayScalar(value,unit){if(value===true)return'あり';if(value===false)return'なし';if(value==null||value==='')return'未設定';const translated=VALUE_LABELS[value]||value;if(unit==='JPY'&&Number.isFinite(Number(value)))return `${Number(value).toLocaleString('ja-JP')}円`;return `${translated}${unit&&unit!=='JPY'?unit:''}`}
-function valueText(condition){
-  if(Array.isArray(condition.value))return condition.value.map((v)=>displayScalar(v,condition.unit)).join(' / ');
-  if(condition.value&&typeof condition.value==='object'){
-    if('min' in condition.value||'max' in condition.value)return `${displayScalar(condition.value.min,condition.unit)}〜${displayScalar(condition.value.max,condition.unit)}`;
-    return Object.values(condition.value).filter((v)=>v!=null&&typeof v!=='object').join(' / ')||'詳細条件';
-  }
-  const value=displayScalar(condition.value,condition.unit);
-  const suffix={gte:'以上',lte:'以下',neq:'を除外',not_contains:'を含まない',changed_to:'になったら',relative_change:'の変化',rank:'を優先'}[condition.operator]||'';
-  return `${value}${suffix}`;
+function defaultWatch(){return{type:'shopping',domain:'fashion',target:{title:''},rawQuery:'',domainConditions:[],compatibilityConditions:[],triggers:[],metadata:{}}}
+function uiDomainLabel(domain){return domain==='flight'?'航空券':domain==='hotel'?'ホテル':domain==='used_car'?'中古車':'商品'}
+function semanticLane(condition){return condition?.role==='change'?'change':'eligibility'}
+function safeParse(raw){try{return raw.trim()?parseWatchQuery(raw):null}catch{return null}}
+
+function cleanParserConditions(draft){
+  return {
+    ...draft,
+    conditions:(draft.conditions||[]).filter((item)=>item.manuallyEdited||item.source!=='text'),
+    unresolvedFragments:[],
+  };
 }
-function parseEditorValue(raw,condition){if(condition.operator==='one_of')return raw.split(/[、,]/).map((v)=>v.trim()).filter(Boolean);if(['gte','lte'].includes(condition.operator)&&raw!==''&&!Number.isNaN(Number(raw)))return Number(raw);if(condition.operator==='boolean')return raw==='true';return raw}
-function isNumeric(definition){return ['integer','number','duration','money','measurement'].includes(definition?.valueType)}
-function safelyParse(raw){try{return raw.trim()?parseWatchQuery(raw):null}catch{return null}}
+
+function normalizedRoleOptions(selected){
+  return Object.entries(ROLE_LABELS).map(([value,label])=>`<option value="${value}" ${value===selected?'selected':''}>${label}</option>`).join('')
+}
+
+function operatorOptions(draft,condition){
+  const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
+  const operators=[...(definition?.operators||[]),condition.operator].filter(Boolean)
+  const unique=[...new Set(operators.length?operators:['eq','one_of','gte','lte','range'])]
+  return unique.map((value)=>`<option value="${esc(value)}" ${value===condition.operator?'selected':''}>${esc(OPERATOR_LABELS[value]||value)}</option>`).join('')
+}
+
+function parseEditedValue(raw,condition,definition){
+  const text=String(raw??'').trim()
+  if(condition.operator==='one_of')return text.split(/[、,]/).map((item)=>item.trim()).filter(Boolean)
+  if(definition?.valueType==='boolean'||condition.operator==='boolean')return ['true','1','はい','yes'].includes(text.toLowerCase())
+  if(['integer','number','duration','money','measurement'].includes(definition?.valueType)||typeof condition.value==='number'){
+    const value=Number(text.replace(/,/g,''));return Number.isFinite(value)?value:text
+  }
+  return text
+}
+
+function conditionCardHtml(draft,condition){
+  const review=condition.supportState==='needs_review'?'<span class="condition-review">要確認</span>':''
+  return `<button type="button" class="condition-card role-${esc(condition.role)}" data-condition-card data-condition-id="${esc(condition.id)}" aria-label="${esc(`${ROLE_LABELS[condition.role]||'条件'} ${conditionLabel(draft,condition)} ${conditionValueLabel(condition)}を編集`)}"><span class="condition-role">${esc(ROLE_LABELS[condition.role]||'条件')}</span><span class="condition-main"><b>${esc(conditionLabel(draft,condition))}</b><span>${esc(conditionValueLabel(condition))}</span></span>${review}<span class="condition-chevron" aria-hidden="true">›</span></button>`
+}
+
+function unresolvedHtml(fragments){
+  if(!fragments?.length)return''
+  return `<section class="unresolved-list" data-unresolved-list><div class="unresolved-head"><b>まだ条件にできていません</b><small>意味を決めつけず、そのまま残しています。</small></div>${fragments.map((item)=>`<div class="unresolved-item"><span>${esc(item.text)}</span><button type="button" data-remove-unresolved="${esc(item.id)}" aria-label="${esc(`${item.text}を削除`)}">削除</button></div>`).join('')}</section>`
+}
+
+function conditionSheetHtml(draft,condition){
+  const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
+  const value=editableValue(condition)
+  const inputMode=['integer','number','duration','money','measurement'].includes(definition?.valueType)||typeof condition.value==='number'?'decimal':'text'
+  return `<div class="composer-sheet-backdrop" data-sheet-backdrop><section class="composer-sheet" data-condition-sheet role="dialog" aria-modal="true" aria-label="条件を編集"><div class="sheet-handle" aria-hidden="true"></div><header><div><small>${esc(ROLE_LABELS[condition.role]||'条件')}</small><h3>${esc(conditionLabel(draft,condition))}</h3></div><button type="button" class="sheet-close" data-close-sheet aria-label="閉じる">×</button></header><div class="sheet-fields"><label><span>扱い</span><select data-condition-role>${normalizedRoleOptions(condition.role)}</select></label><label><span>条件</span><select data-condition-operator>${operatorOptions(draft,condition)}</select></label><label><span>値</span><input data-condition-value inputmode="${inputMode}" value="${esc(value)}"></label>${condition.unit?`<div class="condition-unit">単位: ${esc(condition.unit==='JPY'?'円':condition.unit)}</div>`:''}</div><button type="button" class="danger-quiet" data-remove-condition>この条件を削除</button></section></div>`
+}
+
+function conditionOptionsHtml(options){
+  return options.slice(0,18).map((definition)=>`<button type="button" class="condition-option" data-condition-option data-attribute-id="${esc(definition.attributeId)}"><span>${esc(definition.label)}</span><small>${esc(definition.group||'条件')}</small></button>`).join('')
+}
+
+function addConditionSheetHtml(options){
+  return `<div class="composer-sheet-backdrop" data-sheet-backdrop><section class="composer-sheet add-condition-sheet" data-add-condition-sheet role="dialog" aria-modal="true" aria-label="条件を追加"><div class="sheet-handle" aria-hidden="true"></div><header><div><small>条件を追加</small><h3>探したい条件を選ぶ</h3></div><button type="button" class="sheet-close" data-close-sheet aria-label="閉じる">×</button></header><label class="condition-search"><span class="sr-only">条件を検索</span><input type="search" data-condition-search placeholder="例：容量、サイズ、色、価格"></label><div class="condition-options-head"><b>おすすめ</b><small>今の対象に合う条件</small></div><div class="condition-options" data-condition-options>${conditionOptionsHtml(options)}</div></section></div>`
+}
+
+function defaultCondition(definition){
+  const operator=definition.operators?.[0]||'eq'
+  let value=''
+  if(definition.valueType==='boolean')value=true
+  else if(definition.allowedValues?.length)value=definition.allowedValues[0]
+  return {id:`manual-${definition.attributeId}-${Date.now()}`,attributeId:definition.attributeId,operator,value,unit:definition.unit,role:'required',supportState:'confirmed',source:'manual',manuallyEdited:true}
+}
 
 export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={}){
-  if(!form)return null;
-  if(form.dataset.canonicalComposer==='true')return form._canonicalController||null;
-  const hidden=form.querySelector('#query');
-  const originalWatch=form._mikkeDraft?structuredClone(form._mikkeDraft):null;
-  let parsedWatch=originalWatch?structuredClone(originalWatch):safelyParse(hidden?.value||'');
-  let store=createComposerDraftStore(originalWatch?draftFromWatch(originalWatch):(parsedWatch?draftFromWatch(parsedWatch):{}));
-  let activeConditionId=null,addSheetOpen=false,addSearch='';
-  let rawText=originalWatch?.rawQuery||originalWatch?.metadata?.rawQuery||hidden?.value||'';
+  if(!form||form.dataset.canonicalComposer==='true')return form?._canonicalController||null
+  const hidden=form.querySelector('#query')
+  const seedRaw=hidden?.value?.trim()||''
+  let originalWatch=form._mikkeDraft?structuredClone(form._mikkeDraft):(safeParse(seedRaw)||defaultWatch())
+  let store=createComposerDraftStore(draftFromWatch(originalWatch))
+  let activeSheet=null
+  let sheetOriginId=null
 
-  const root=form.ownerDocument.createElement('section');
-  root.className='canonical-composer';root.dataset.canonicalComposerRoot='';
-  root.innerHTML=`<div class="canonical-entry"><label><b>何を探していますか？</b><textarea rows="3" data-composer-text placeholder="例：NB 996、24.5cm、グレー、1万円以下"></textarea></label><div class="canonical-live" data-composer-status aria-live="polite"></div></div><div data-composer-body></div><div data-composer-sheet></div>`;
-  form.insertBefore(root,form.firstChild);form.dataset.canonicalComposer='true';
-  const input=root.querySelector('[data-composer-text]');input.value=rawText;
+  const root=form.ownerDocument.createElement('section')
+  root.className='canonical-composer'
+  root.dataset.canonicalComposerRoot=''
+  root.innerHTML=`<div class="canonical-entry"><label><b>何を探していますか？</b><textarea rows="3" data-composer-text placeholder="例：996のグレー、24.5cm、1万円以下。中古はなし"></textarea></label><div class="canonical-interpretation" data-composer-interpretation aria-live="polite"></div></div><section class="condition-workspace" data-condition-workspace></section><button type="button" class="add-condition" data-add-condition>＋ 条件から追加</button><div data-composer-sheet-host></div>`
+  form.insertBefore(root,form.firstChild)
+  form.dataset.canonicalComposer='true'
+  const input=root.querySelector('[data-composer-text]')
+  input.value=seedRaw||originalWatch.metadata?.rawQuery||originalWatch.rawQuery||''
 
   function publish(){
-    const draft=store.getDraft();
-    const base=parsedWatch||originalWatch||{};
-    const watch=watchFromDraft({...draft,metadata:{...(draft.metadata||{}),rawQuery:rawText,inputMode:'hybrid'}},base);
-    watch.rawQuery=rawText||watch.rawQuery||watch.target?.title||'';
-    form._mikkeDraft=watch;form.dataset.submitStructured='true';if(hidden)hidden.value=rawText||watch.target?.title||'';
-    const validation=store.validate();const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=!validation.saveable;
-    return {draft,watch,validation};
+    const draft=store.getDraft()
+    const watch=watchFromDraft(draft,originalWatch)
+    const raw=input.value.trim()
+    watch.rawQuery=raw||watch.rawQuery||watch.target?.title||''
+    watch.metadata={...(watch.metadata||{}),rawQuery:watch.rawQuery,inputMode:'hybrid_cards'}
+    form._mikkeDraft=watch
+    form.dataset.submitStructured='true'
+    if(hidden)hidden.value=watch.rawQuery
+    const validation=store.validate()
+    const submit=form.querySelector('button[type="submit"]')
+    if(submit)submit.disabled=!validation.saveable||(!watch.rawQuery&&!watch.target?.title)
+    return {draft,watch,validation}
   }
 
-  function conditionCard(draft,condition){const role=ROLE_LABELS[condition.role]||'必須';const review=condition.supportState&&condition.supportState!=='confirmed'?`<span class="condition-review">要確認</span>`:'';return `<button type="button" class="condition-card role-${esc(condition.role)}" data-condition-card data-condition-id="${esc(condition.id)}" aria-label="${esc(`${role} ${labelFor(draft,condition)} ${valueText(condition)}`)}"><span class="condition-role">${esc(role)}</span><span class="condition-main"><b>${esc(labelFor(draft,condition))}</b><span>${esc(valueText(condition))}</span></span>${review}<span class="condition-chevron" aria-hidden="true">›</span></button>`}
-  function editorSheet(draft,condition){if(!condition)return'';const definition=definitionFor(draft,condition);const operators=definition?.operators?.length?definition.operators:['eq','neq','gte','lte','range','one_of','contains','not_contains','boolean','compatible_with','changed_to','relative_change','rank'];const rawValue=Array.isArray(condition.value)?condition.value.join('、'):(condition.value&&typeof condition.value==='object'?JSON.stringify(condition.value):(condition.value??''));const inputType=isNumeric(definition)?'number':'text';return `<div class="canonical-sheet-backdrop" data-sheet-backdrop><section class="canonical-sheet" data-condition-sheet role="dialog" aria-modal="true" aria-label="条件を編集"><div class="sheet-handle" aria-hidden="true"></div><header><div><small>${esc(ROLE_LABELS[condition.role]||'条件')}</small><h3>${esc(labelFor(draft,condition))}</h3></div><button type="button" class="sheet-close" data-close-sheet aria-label="閉じる">×</button></header><label><span>扱い</span><select data-condition-role>${Object.entries(ROLE_LABELS).map(([value,label])=>option(value,label,condition.role)).join('')}</select></label><label><span>条件</span><select data-condition-operator>${operators.map((value)=>option(value,OPERATOR_LABELS[value]||value,condition.operator)).join('')}</select></label><label><span>値</span><input data-condition-value type="${inputType}" value="${esc(rawValue)}" inputmode="${inputType==='number'?'decimal':'text'}"></label><button type="button" class="sheet-remove" data-remove-condition>この条件を削除</button></section></div>`}
-  function catalogOptions(draft){const context={domain:draft.domain||'fashion',subcategoryId:draft.subcategoryId,categoryId:draft.categoryId,targetText:draft.target?.title||rawText};const recommended=recommendedConditions(context).slice(0,10);return {options:addSearch?searchConditionDefinitions(context.domain,addSearch,context.subcategoryId):recommended}}
-  function addConditionSheet(draft){if(!addSheetOpen)return'';const {options}=catalogOptions(draft);return `<div class="canonical-sheet-backdrop" data-sheet-backdrop><section class="canonical-sheet add-condition-sheet" data-add-condition-sheet role="dialog" aria-modal="true" aria-label="条件を追加"><div class="sheet-handle" aria-hidden="true"></div><header><div><small>条件を選ぶ</small><h3>${addSearch?'検索結果':'おすすめ'}</h3></div><button type="button" class="sheet-close" data-close-sheet aria-label="閉じる">×</button></header><label class="condition-search"><span class="sr-only">条件を検索</span><input data-condition-search type="search" value="${esc(addSearch)}" placeholder="条件名を検索"></label><div class="condition-options">${options.map((item)=>`<button type="button" data-condition-option data-attribute-id="${esc(item.attributeId)}"><span>${esc(item.label)}</span><small>${esc(item.group||'')}</small></button>`).join('')||'<p class="canonical-empty">該当する条件がありません</p>'}</div></section></div>`}
+  function summaryText(draft){
+    const count=draft.conditions?.length||0
+    const unresolved=draft.unresolvedFragments?.length||0
+    return unresolved?`条件 ${count}件・未整理 ${unresolved}件`:`条件 ${count}件`
+  }
 
-  function render(){const {draft,validation}=publish();const body=root.querySelector('[data-composer-body]');const unresolved=draft.unresolvedFragments||[],cards=draft.conditions||[],target=draft.target?.title||rawText.split(/[、,]/)[0]||'',longList=cards.length>8;body.innerHTML=`${target?`<section class="target-summary" data-target-summary><small>探すもの</small><b>${esc(target)}</b></section>`:''}<section class="condition-section"><div class="condition-section-head"><div><small>条件</small><b data-condition-summary>${cards.length?`${cards.length}件`:'まだありません'}</b></div><button type="button" class="add-condition" data-add-condition aria-label="条件から追加">＋ 条件から追加</button></div>${longList?'<label class="condition-filter"><span class="sr-only">条件を絞り込む</span><input data-condition-filter type="search" placeholder="条件を絞り込む"></label>':''}<div class="condition-list" data-condition-list>${cards.map((condition)=>conditionCard(draft,condition)).join('')}</div></section>${unresolved.length?`<section class="unresolved-list" data-unresolved-list><b>まだ条件にできていません</b><p>意味を決めつけず、そのまま残しています。</p><div>${unresolved.map((item)=>`<span>${esc(item.text)}</span>`).join('')}</div></section>`:''}${validation.conflicts.length?'<section class="composer-warning" role="alert">条件が矛盾しています。内容を確認してください。</section>':''}`;root.querySelector('[data-composer-status]').textContent=cards.length||unresolved.length?`条件 ${cards.length}件${unresolved.length?`・要確認 ${unresolved.length}件`:''}`:'入力すると条件を整理します';const active=draft.conditions.find((item)=>item.id===activeConditionId);root.querySelector('[data-composer-sheet]').innerHTML=active?editorSheet(draft,active):addConditionSheet(draft)}
-  function replaceStore(nextDraft){store=createComposerDraftStore(nextDraft)}
+  function render({restoreFocus=false}={}){
+    const {draft,watch}=publish()
+    const workspace=root.querySelector('[data-condition-workspace]')
+    const target=watch.target?.title||draft.target?.title||''
+    const cards=(draft.conditions||[]).map((condition)=>conditionCardHtml(draft,condition)).join('')
+    workspace.innerHTML=`${target?`<div class="target-summary"><small>${esc(uiDomainLabel(watch.domain))}</small><b>${esc(target)}</b></div>`:''}<div class="condition-list-head"><div><small>条件</small><b data-condition-summary>${esc(summaryText(draft))}</b></div>${draft.conditions?.length>8?'<small>必要な条件だけタップして編集できます</small>':''}</div>${draft.conditions?.length>8?'<label class="condition-filter"><span class="sr-only">条件を絞り込む</span><input data-condition-filter type="search" placeholder="条件を絞り込む"></label>':''}<div class="condition-list" data-condition-list>${cards}</div>${unresolvedHtml(draft.unresolvedFragments)}`
+    const interpretation=root.querySelector('[data-composer-interpretation]')
+    interpretation.textContent=input.value.trim()?`${uiDomainLabel(watch.domain)}として整理しました。条件は下で直接直せます。`:'文章で入力するか、「条件から追加」から始められます。'
+    const host=root.querySelector('[data-composer-sheet-host]')
+    if(activeSheet?.type==='condition'){
+      const condition=draft.conditions.find((item)=>item.id===activeSheet.id)
+      host.innerHTML=condition?conditionSheetHtml(draft,condition):''
+      if(!condition)activeSheet=null
+    }else if(activeSheet?.type==='add'){
+      const options=activeSheet.options||recommendedConditions({domain:draft.domain,categoryId:draft.categoryId,subcategoryId:draft.subcategoryId,targetText:target||input.value})
+      host.innerHTML=addConditionSheetHtml(options)
+    }else host.innerHTML=''
+    if(restoreFocus&&sheetOriginId){queueMicrotask(()=>root.querySelector(`[data-condition-id="${sheetOriginId.replace(/"/g,'\\"')}"]`)?.focus())}
+  }
 
-  input.addEventListener('input',()=>{rawText=input.value;parsedWatch=safelyParse(rawText);const current=store.getDraft();const interpreted=interpretInput(rawText,{domain:current.domain,categoryId:current.categoryId,subcategoryId:current.subcategoryId});const merged=mergeInterpretation(current,interpreted,{replaceUnresolved:true});replaceStore({...merged,metadata:{...(merged.metadata||{}),rawQuery:rawText,inputMode:'hybrid'}});activeConditionId=null;addSheetOpen=false;render()});
-  root.addEventListener('click',(event)=>{const card=event.target.closest('[data-condition-card]');if(card){activeConditionId=card.dataset.conditionId;addSheetOpen=false;render();return}if(event.target.closest('[data-add-condition]')){activeConditionId=null;addSheetOpen=true;addSearch='';render();return}const optionButton=event.target.closest('[data-condition-option]');if(optionButton){const draft=store.getDraft(),def=getConditionDefinition(draft.domain,optionButton.dataset.attributeId,draft.subcategoryId);const created=store.upsertCondition({attributeId:optionButton.dataset.attributeId,operator:def?.operators?.[0]||'eq',value:def?.valueType==='boolean'?true:'',unit:def?.unit,role:'required',supportState:'needs_review',source:'manual',manuallyEdited:true});activeConditionId=created.id;addSheetOpen=false;render();return}if(event.target.closest('[data-close-sheet]')||event.target.matches('[data-sheet-backdrop]')){activeConditionId=null;addSheetOpen=false;render();return}if(event.target.closest('[data-remove-condition]')){if(activeConditionId)store.removeCondition(activeConditionId);activeConditionId=null;render()}});
-  root.addEventListener('change',(event)=>{const target=event.target;if(!activeConditionId)return;const draft=store.getDraft(),condition=draft.conditions.find((item)=>item.id===activeConditionId);if(!condition)return;if(target.matches('[data-condition-role]')){store.setConditionRole(activeConditionId,target.value);render();return}if(target.matches('[data-condition-operator]')){store.upsertCondition({...condition,operator:target.value,manuallyEdited:true});render();return}if(target.matches('[data-condition-value]')){store.upsertCondition({...condition,value:parseEditorValue(target.value,condition),manuallyEdited:true});render()}});
-  root.addEventListener('input',(event)=>{if(event.target.matches('[data-condition-search]')){addSearch=event.target.value;render()}if(event.target.matches('[data-condition-filter]')){const needle=event.target.value.trim().toLocaleLowerCase('ja-JP');root.querySelectorAll('[data-condition-card]').forEach((card)=>{card.hidden=needle&&!card.textContent.toLocaleLowerCase('ja-JP').includes(needle)})}});
-  form.addEventListener('submit',()=>publish(),true);
-  const controller={get store(){return store},render,publish,getDraft:()=>store.getDraft()};form._canonicalController=controller;render();return controller;
+  function applyText(raw){
+    const current=cleanParserConditions(store.getDraft())
+    const parsed=safeParse(raw)
+    if(parsed)originalWatch={...originalWatch,...structuredClone(parsed),metadata:{...(originalWatch.metadata||{}),...(parsed.metadata||{})}}
+    const interpretation=interpretInput(raw,{domain:current.domain,categoryId:current.categoryId,subcategoryId:current.subcategoryId})
+    const merged=mergeInterpretation(current,interpretation)
+    store=createComposerDraftStore(merged)
+    activeSheet=null
+    render()
+  }
+
+  function closeSheet(){activeSheet=null;render({restoreFocus:true});sheetOriginId=null}
+
+  input.addEventListener('input',()=>applyText(input.value))
+  root.addEventListener('click',(event)=>{
+    const card=event.target.closest('[data-condition-card]')
+    if(card){sheetOriginId=card.dataset.conditionId;activeSheet={type:'condition',id:card.dataset.conditionId};render();return}
+    if(event.target.closest('[data-add-condition]')){
+      const draft=store.getDraft();activeSheet={type:'add',options:recommendedConditions({domain:draft.domain,categoryId:draft.categoryId,subcategoryId:draft.subcategoryId,targetText:draft.target?.title||input.value})};render();return
+    }
+    if(event.target.closest('[data-close-sheet]')||event.target.matches('[data-sheet-backdrop]')){closeSheet();return}
+    const remove=event.target.closest('[data-remove-unresolved]')
+    if(remove){store.removeUnresolved(remove.dataset.removeUnresolved);render();return}
+    if(event.target.closest('[data-remove-condition]')&&activeSheet?.type==='condition'){
+      store.removeCondition(activeSheet.id);closeSheet();return
+    }
+    const option=event.target.closest('[data-condition-option]')
+    if(option){
+      const draft=store.getDraft();const definition=getConditionDefinition(draft.domain,option.dataset.attributeId,draft.subcategoryId)
+      if(definition){const condition=defaultCondition(definition);store.upsertCondition(condition);const saved=store.getDraft().conditions.find((item)=>item.attributeId===condition.attributeId&&semanticLane(item)===semanticLane(condition));activeSheet={type:'condition',id:saved?.id||condition.id};render()}
+    }
+  })
+
+  root.addEventListener('input',(event)=>{
+    if(event.target.matches('[data-condition-search]')&&activeSheet?.type==='add'){
+      const draft=store.getDraft();const options=searchConditionDefinitions(draft.domain,event.target.value,draft.subcategoryId);activeSheet={type:'add',options};root.querySelector('[data-condition-options]').innerHTML=conditionOptionsHtml(options);return
+    }
+    if(event.target.matches('[data-condition-filter]')){
+      const needle=event.target.value.trim().toLocaleLowerCase('ja-JP');root.querySelectorAll('[data-condition-card]').forEach((card)=>{card.hidden=Boolean(needle&&!card.textContent.toLocaleLowerCase('ja-JP').includes(needle))})
+    }
+  })
+
+  root.addEventListener('change',(event)=>{
+    if(activeSheet?.type!=='condition')return
+    const draft=store.getDraft();const condition=draft.conditions.find((item)=>item.id===activeSheet.id);if(!condition)return
+    if(event.target.matches('[data-condition-role]')){store.setConditionRole(condition.id,event.target.value);render();return}
+    if(event.target.matches('[data-condition-operator]')){store.upsertCondition({...condition,operator:event.target.value,manuallyEdited:true});render();return}
+    if(event.target.matches('[data-condition-value]')){
+      const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
+      store.upsertCondition({...condition,value:parseEditedValue(event.target.value,condition,definition),manuallyEdited:true});render();return
+    }
+  })
+
+  root.addEventListener('keydown',(event)=>{if(event.key==='Escape'&&activeSheet){event.preventDefault();closeSheet()}})
+  form.addEventListener('submit',()=>publish(),true)
+
+  const controller={
+    getWatch:()=>publish().watch,
+    getRawText:()=>input.value,
+    getDraft:()=>store.getDraft(),
+    getRenderModel:()=>{const {watch,validation}=publish();return{watch,rawText:input.value,interpretation:{summary:root.querySelector('[data-composer-interpretation]')?.textContent||''},saveable:validation.saveable}},
+    applyText:(raw)=>{input.value=raw;applyText(raw);return publish().watch},
+  }
+  form._canonicalController=controller
+  render()
+  return controller
 }
 
 function scan(){const form=document.querySelector?.('#watch-form');if(form)mountCanonicalComposer(form)}
-if(typeof document!=='undefined'){const app=document.querySelector('#app');if(app&&typeof MutationObserver!=='undefined')new MutationObserver(scan).observe(app,{childList:true,subtree:true});scan()}
+if(typeof document!=='undefined'){
+  const app=document.querySelector('#app');if(app&&typeof MutationObserver!=='undefined')new MutationObserver(scan).observe(app,{childList:true,subtree:true});scan()
+}
