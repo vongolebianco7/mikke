@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const modes=readFileSync(new URL('../src/composerModes.js',import.meta.url),'utf8');
 const canonical=readFileSync(new URL('../src/canonicalComposerUi.js',import.meta.url),'utf8');
+const cardCss=readFileSync(new URL('../canonical-composer.css',import.meta.url),'utf8');
 const css=readFileSync(new URL('../composer-modes.css',import.meta.url),'utf8');
 const index=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 
@@ -41,16 +42,18 @@ test('shopping composer uses category-aware direct controls for representative d
 
 test('natural language is the primary canonical entry rather than a secondary helper',()=>{
   assert.match(canonical,/data-composer-text/);
-  assert.match(canonical,/controller\.applyText/);
-  assert.match(canonical,/form\._mikkeDraft=model\.watch/);
+  assert.match(canonical,/function applyText\(raw\)/);
+  assert.match(canonical,/input\.addEventListener\('input',\(\)=>applyText\(input\.value\)\)/);
+  assert.match(canonical,/form\._mikkeDraft=watch/);
   assert.doesNotMatch(index,/textEntryUi\.js/);
   assert.doesNotMatch(index,/text-entry-ui\.css/);
 });
 
-test('all domains use one canonical notification section separated from search conditions',()=>{
-  assert.match(canonical,/data-canonical-notification/);
-  assert.match(canonical,/いつ知らせる？/);
-  assert.match(canonical,/data-canonical-notify-price/);
-  assert.match(canonical,/data-canonical-notify="availability"/);
-  assert.match(canonical,/data-canonical-notify="award"/);
+test('all domains use one condition-card model with change conditions separated semantically',()=>{
+  assert.match(canonical,/data-condition-card/);
+  assert.match(canonical,/data-add-condition/);
+  assert.match(canonical,/semanticLane\(condition\).*role==='change'\?'change':'eligibility'/s);
+  assert.match(canonical,/role-\$\{esc\(condition\.role\)\}/);
+  assert.match(cardCss,/\.role-change \.condition-role/);
+  assert.doesNotMatch(canonical,/data-canonical-notification/);
 });

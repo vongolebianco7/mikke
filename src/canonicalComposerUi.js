@@ -1,103 +1,215 @@
-import { createComposerController } from './domain/composerController.js';
 import { parseWatchQuery } from './domain/parseWatch.js';
-import { applyComposerCondition, applyFlightTravelIntentEdit, applyFlightFilterEdit } from './domain/composerModel.js';
-import { getDomainField } from './domain/domainSchemas.js';
+import { interpretInput } from './domain/interpretInput.js';
+import { mergeInterpretation } from './domain/mergeInterpretation.js';
+import { createComposerDraftStore } from './domain/composerDraftStore.js';
+import { draftFromWatch, watchFromDraft } from './domain/composerLegacyAdapter.js';
+import { getConditionDefinition, recommendedConditions, searchConditionDefinitions } from './domain/conditionCatalog.js';
+import { ROLE_LABELS, OPERATOR_LABELS, conditionLabel, conditionValueLabel, editableValue } from './composer/conditionPresentation.js';
 
-const shoppingPrimaryFields={appliance:['totalCapacity','width','color','condition'],fashion:['size','color','condition'],furniture:['width','depth','color','material','condition'],food:['weight','quantity','originCountry'],used_car:['modelYear','mileage','repairHistory']};
-const shoppingOperators={totalCapacity:'gte',width:'lte',depth:'lte',weight:'gte',quantity:'gte',modelYear:'gte',mileage:'lte',color:'in',condition:'in'};
-const labels={shopping:'商品',flight:'航空券',hotel:'ホテル'};
+function esc(value){return String(value??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]))}
+function defaultWatch(){return{type:'shopping',domain:'fashion',target:{title:''},rawQuery:'',domainConditions:[],compatibilityConditions:[],triggers:[],metadata:{}}}
+function uiDomainLabel(domain){return domain==='flight'?'航空券':domain==='hotel'?'ホテル':domain==='used_car'?'中古車':'商品'}
+function semanticLane(condition){return condition?.role==='change'?'change':'eligibility'}
+function safeParse(raw){try{return raw.trim()?parseWatchQuery(raw):null}catch{return null}}
 
-function esc(value){return String(value??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function uiDomain(domain){return domain==='flight'?'flight':domain==='hotel'?'hotel':'shopping'}
-function fieldCondition(watch,id){return (watch.domainConditions||[]).find((c)=>c.fieldId===id)}
-function triggerKey(t){return `${t.metric||''}:${t.scope||''}:${t.reference||''}`}
-function hasTrigger(watch,metric,scope='',reference=''){return (watch.triggers||[]).some((t)=>triggerKey(t)===`${metric}:${scope}:${reference}`)}
-function replaceTrigger(watch,trigger){const key=triggerKey(trigger);return {...watch,triggers:[...(watch.triggers||[]).filter((t)=>triggerKey(t)!==key),trigger]}}
-function removeTrigger(watch,metric,scope='',reference=''){const key=`${metric}:${scope}:${reference}`;return {...watch,triggers:(watch.triggers||[]).filter((t)=>triggerKey(t)!==key)}}
-function valueFor(watch,id,fallback=''){const value=fieldCondition(watch,id)?.value;return Array.isArray(value)?value.join('、'):(value??fallback)}
-function numberLike(field){return ['integer','number','duration','money','measurement'].includes(field?.type)}
-function parseFieldValue(field,id,raw){if(numberLike(field))return Number(raw);if((shoppingOperators[id]==='in'||field?.type==='list')&&typeof raw==='string')return raw.split(/[、,]/).map((v)=>v.trim()).filter(Boolean);return raw}
-function setDomainCondition(watch,id,value,operator,role='required'){
-  const field=getDomainField(watch.domain,id);if(!field)return watch;
-  const resolved=operator||(field.type==='boolean'?(value===false?'is_false':'is_true'):(field.operators?.[0]||'eq'));
-  return applyComposerCondition(watch,{id:`canonical-${id}`,fieldId:id,operator:resolved,value,unit:field.unit,role});
+function cleanParserConditions(draft){
+  return {
+    ...draft,
+    conditions:(draft.conditions||[]).filter((item)=>item.manuallyEdited||item.source!=='text'),
+    unresolvedFragments:[],
+  };
 }
-function removeDomainCondition(watch,id){return {...watch,domainConditions:(watch.domainConditions||[]).filter((c)=>c.fieldId!==id)}}
-function placeSummary(set){if(set?.mode==='anywhere')return'どこでも';return(set?.places||[]).map((p)=>p.label).filter(Boolean).join(' / ')}
-function subjectSummary(watch){
-  if(watch.domain==='flight')return [placeSummary(watch.travelIntent?.originSet),placeSummary(watch.travelIntent?.destinationSet)].filter(Boolean).join(' → ');
-  if(watch.domain==='hotel')return valueFor(watch,'destination',valueFor(watch,'area',watch.target?.title||''));
-  return watch.target?.title||'';
+
+function normalizedRoleOptions(selected){
+  return Object.entries(ROLE_LABELS).map(([value,label])=>`<option value="${value}" ${value===selected?'selected':''}>${label}</option>`).join('')
 }
-function recognizedLines(model){
-  const watch=model.watch,lines=[];const subject=subjectSummary(watch);if(subject)lines.push(subject);
-  if(watch.domain==='flight'){
-    const trip={round_trip:'往復',one_way:'片道',multi_city:'複数都市'}[watch.travelIntent?.tripPattern];if(trip)lines.push(trip);
-    if((watch.flightFilters||[]).some((f)=>f.fieldId==='nonstopOnly'))lines.push('直行便');
-    const airlines=(watch.flightFilters||[]).find((f)=>f.fieldId==='allowedAirlines');if(airlines?.value?.length)lines.push(airlines.value.join(' / '));
-  } else {
-    for(const c of (watch.domainConditions||[]).slice(0,4)){
-      const field=getDomainField(watch.domain,c.fieldId);const value=Array.isArray(c.value)?c.value.join('・'):c.value;
-      if(field&&value!==undefined&&value!=='')lines.push(`${field.label} ${value}`);
-    }
+
+function operatorOptions(draft,condition){
+  const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
+  const operators=[...(definition?.operators||[]),condition.operator].filter(Boolean)
+  const unique=[...new Set(operators.length?operators:['eq','one_of','gte','lte','range'])]
+  return unique.map((value)=>`<option value="${esc(value)}" ${value===condition.operator?'selected':''}>${esc(OPERATOR_LABELS[value]||value)}</option>`).join('')
+}
+
+function parseEditedValue(raw,condition,definition){
+  const text=String(raw??'').trim()
+  if(condition.operator==='one_of')return text.split(/[、,]/).map((item)=>item.trim()).filter(Boolean)
+  if(definition?.valueType==='boolean'||condition.operator==='boolean')return ['true','1','はい','yes'].includes(text.toLowerCase())
+  if(['integer','number','duration','money','measurement'].includes(definition?.valueType)||typeof condition.value==='number'){
+    const value=Number(text.replace(/,/g,''));return Number.isFinite(value)?value:text
   }
-  for(const t of (watch.triggers||[]).slice(0,2)){
-    if(t.metric==='price'&&t.operator==='lte'&&Number.isFinite(Number(t.value)))lines.push(`${Number(t.value).toLocaleString('ja-JP')}円以下で通知`);
-    else if(t.metric==='availability')lines.push(`${watch.domain==='hotel'?'空室':watch.domain==='flight'?'空席':'在庫'}が出たら通知`);
-  }
-  return lines;
+  return text
 }
-function triggerSummary(watch,trigger){
-  if(trigger.metric==='price'&&trigger.operator==='lte'&&Number.isFinite(Number(trigger.value)))return `${Number(trigger.value).toLocaleString('ja-JP')}円以下になったら通知`;
-  if(trigger.metric==='availability'&&trigger.scope==='award')return '特典空席が出たら通知';
-  if(trigger.metric==='availability')return `${watch.domain==='hotel'?'空室':watch.domain==='flight'?'空席':'在庫'}が出たら通知`;
-  if(trigger.metric==='price_drop_percent')return '値下がりしたら通知';
-  return '条件に合う変化があったら通知';
-}
-function notificationSummary(watch){const triggers=watch.triggers||[];return triggers.length?triggers.slice(0,2).map((t)=>triggerSummary(watch,t)).join('・'):'条件に合う候補が見つかったら'}
 
-function shoppingEditor(watch){const fields=shoppingPrimaryFields[watch.domain]||[];if(!fields.length)return `<div class="canonical-empty">商品名を文章で入力すると、カテゴリに合う条件を表示します。</div>`;return `<div class="canonical-fields">${fields.map((id)=>{const field=getDomainField(watch.domain,id);if(!field)return'';if(field.type==='boolean')return`<button type="button" class="canonical-toggle ${fieldCondition(watch,id)?'active':''}" data-canonical-field="${id}" data-canonical-boolean>${esc(field.label)}</button>`;return`<label><small>${esc(field.label)}</small><input ${numberLike(field)?'type="number"':'type="text"'} value="${esc(valueFor(watch,id))}" data-canonical-field="${id}"></label>`}).join('')}</div>`}
-function flightEditor(watch){const intent=watch.travelIntent||{};const nonstop=(watch.flightFilters||[]).some((f)=>f.fieldId==='nonstopOnly'),airlines=(watch.flightFilters||[]).some((f)=>f.fieldId==='allowedAirlines');return `<div class="canonical-flight"><div class="canonical-choice-row"><button type="button" data-canonical-trip="round_trip" class="${intent.tripPattern==='round_trip'?'active':''}">往復</button><button type="button" data-canonical-trip="one_way" class="${intent.tripPattern==='one_way'?'active':''}">片道</button></div><div class="canonical-fields"><label><small>出発地</small><input value="${esc(placeSummary(intent.originSet))}" data-canonical-place="origin"></label><label><small>行き先</small><input value="${esc(placeSummary(intent.destinationSet))}" data-canonical-place="destination"></label></div><div class="canonical-choice-row"><button type="button" data-canonical-flight-filter="nonstopOnly" class="${nonstop?'active':''}">直行便</button><button type="button" data-canonical-flight-filter="allowedAirlines" class="${airlines?'active':''}">ANA / JAL</button></div></div>`}
-function hotelEditor(watch){const ids=['destination','checkIn','checkOut','adults','rooms','maxWalkingMinutes'];return `<div class="canonical-fields">${ids.map((id)=>{const field=getDomainField('hotel',id);if(!field)return'';const type=['checkIn','checkOut'].includes(id)?'date':numberLike(field)?'number':'text';return`<label><small>${esc(field.label)}</small><input type="${type}" value="${esc(valueFor(watch,id,id==='adults'?2:id==='rooms'?1:''))}" data-canonical-field="${id}"></label>`}).join('')}</div><div class="canonical-choice-row"><button type="button" data-canonical-hotel-toggle="breakfastIncluded" class="${fieldCondition(watch,'breakfastIncluded')?'active':''}">朝食付き</button><button type="button" data-canonical-hotel-toggle="freeCancellation" class="${fieldCondition(watch,'freeCancellation')?'active':''}">キャンセル無料</button></div>`}
-function editorHtml(watch){if(watch.domain==='flight')return flightEditor(watch);if(watch.domain==='hotel')return hotelEditor(watch);return shoppingEditor(watch)}
-function notificationHtml(watch){const price=(watch.triggers||[]).find((t)=>t.metric==='price'&&t.operator==='lte'&&!t.reference);const availability=hasTrigger(watch,'availability');const award=hasTrigger(watch,'availability','award');const label=watch.domain==='flight'?'空席が出たら':watch.domain==='hotel'?'空室が出たら':'在庫が出たら';return `<section class="canonical-notification" data-canonical-notification><div><b>いつ知らせる？</b><small>検索条件とは別に設定します</small></div><label class="canonical-price"><span>価格が</span><input type="number" min="0" value="${esc(price?.value??'')}" data-canonical-notify-price><span>円以下</span></label><div class="canonical-choice-row"><button type="button" data-canonical-notify="availability" class="${availability?'active':''}">${label}</button>${watch.domain==='flight'?`<button type="button" data-canonical-notify="award" class="${award?'active':''}">特典空席が出たら</button>`:''}</div><strong data-canonical-notification-summary>${esc(notificationSummary(watch))}</strong></section>`}
+function conditionCardHtml(draft,condition){
+  const review=condition.supportState==='needs_review'?'<span class="condition-review">要確認</span>':''
+  return `<button type="button" class="condition-card role-${esc(condition.role)}" data-condition-card data-condition-id="${esc(condition.id)}" aria-label="${esc(`${ROLE_LABELS[condition.role]||'条件'} ${conditionLabel(draft,condition)} ${conditionValueLabel(condition)}を編集`)}"><span class="condition-role">${esc(ROLE_LABELS[condition.role]||'条件')}</span><span class="condition-main"><b>${esc(conditionLabel(draft,condition))}</b><span>${esc(conditionValueLabel(condition))}</span></span>${review}<span class="condition-chevron" aria-hidden="true">›</span></button>`
+}
+
+function unresolvedHtml(fragments){
+  if(!fragments?.length)return''
+  return `<section class="unresolved-list" data-unresolved-list><div class="unresolved-head"><b>まだ条件にできていません</b><small>意味を決めつけず、そのまま残しています。</small></div>${fragments.map((item)=>`<div class="unresolved-item"><span>${esc(item.text)}</span><button type="button" data-remove-unresolved="${esc(item.id)}" aria-label="${esc(`${item.text}を削除`)}">削除</button></div>`).join('')}</section>`
+}
+
+function conditionSheetHtml(draft,condition){
+  const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
+  const value=editableValue(condition)
+  const inputMode=['integer','number','duration','money','measurement'].includes(definition?.valueType)||typeof condition.value==='number'?'decimal':'text'
+  return `<div class="composer-sheet-backdrop" data-sheet-backdrop><section class="composer-sheet" data-condition-sheet role="dialog" aria-modal="true" aria-label="条件を編集"><div class="sheet-handle" aria-hidden="true"></div><header><div><small>${esc(ROLE_LABELS[condition.role]||'条件')}</small><h3>${esc(conditionLabel(draft,condition))}</h3></div><button type="button" class="sheet-close" data-close-sheet aria-label="閉じる">×</button></header><div class="sheet-fields"><label><span>扱い</span><select data-condition-role>${normalizedRoleOptions(condition.role)}</select></label><label><span>条件</span><select data-condition-operator>${operatorOptions(draft,condition)}</select></label><label><span>値</span><input data-condition-value inputmode="${inputMode}" value="${esc(value)}"></label>${condition.unit?`<div class="condition-unit">単位: ${esc(condition.unit==='JPY'?'円':condition.unit)}</div>`:''}</div><button type="button" class="danger-quiet" data-remove-condition>この条件を削除</button></section></div>`
+}
+
+function conditionOptionsHtml(options){
+  return options.slice(0,18).map((definition)=>`<button type="button" class="condition-option" data-condition-option data-attribute-id="${esc(definition.attributeId)}"><span>${esc(definition.label)}</span><small>${esc(definition.group||'条件')}</small></button>`).join('')
+}
+
+function addConditionSheetHtml(options){
+  return `<div class="composer-sheet-backdrop" data-sheet-backdrop><section class="composer-sheet add-condition-sheet" data-add-condition-sheet role="dialog" aria-modal="true" aria-label="条件を追加"><div class="sheet-handle" aria-hidden="true"></div><header><div><small>条件を追加</small><h3>探したい条件を選ぶ</h3></div><button type="button" class="sheet-close" data-close-sheet aria-label="閉じる">×</button></header><label class="condition-search"><span class="sr-only">条件を検索</span><input type="search" data-condition-search placeholder="例：容量、サイズ、色、価格"></label><div class="condition-options-head"><b>おすすめ</b><small>今の対象に合う条件</small></div><div class="condition-options" data-condition-options>${conditionOptionsHtml(options)}</div></section></div>`
+}
+
+function defaultCondition(definition){
+  const operator=definition.operators?.[0]||'eq'
+  let value=''
+  if(definition.valueType==='boolean')value=true
+  else if(definition.allowedValues?.length)value=definition.allowedValues[0]
+  return {id:`manual-${definition.attributeId}-${Date.now()}`,attributeId:definition.attributeId,operator,value,unit:definition.unit,role:'required',supportState:'confirmed',source:'manual',manuallyEdited:true}
+}
 
 export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={}){
-  if(!form||form.dataset.canonicalComposer==='true')return form?._canonicalController||null;
-  const hidden=form.querySelector('#query');
-  const initial=form._mikkeDraft||parseWatchQuery(hidden?.value||'')||undefined;
-  const controller=createComposerController(initial);
-  const root=form.ownerDocument.createElement('section');root.className='canonical-composer';root.dataset.canonicalComposerRoot='';
-  root.innerHTML=`<div class="canonical-entry"><label><b>何を探していますか？</b><textarea rows="4" data-composer-text placeholder="例：東京からハワイ、1〜3月、直行便で12万円以下"></textarea></label><div class="canonical-interpretation" data-composer-interpretation aria-live="polite"></div></div><div class="canonical-domain-row"><button type="button" data-canonical-domain="shopping">商品</button><button type="button" data-canonical-domain="flight">航空券</button><button type="button" data-canonical-domain="hotel">ホテル</button></div><div data-canonical-editor></div><div data-canonical-notification-slot></div>`;
-  form.insertBefore(root,form.firstChild);
-  form.dataset.canonicalComposer='true';form._canonicalController=controller;
-  const input=root.querySelector('[data-composer-text]');input.value=controller.getRawText();
+  if(!form||form.dataset.canonicalComposer==='true')return form?._canonicalController||null
+  const hidden=form.querySelector('#query')
+  const seedRaw=hidden?.value?.trim()||''
+  let originalWatch=form._mikkeDraft?structuredClone(form._mikkeDraft):(safeParse(seedRaw)||defaultWatch())
+  let store=createComposerDraftStore(draftFromWatch(originalWatch))
+  let activeSheet=null
+  let sheetOriginId=null
 
-  function publish(){const model=controller.getRenderModel();form._mikkeDraft=model.watch;form.dataset.submitStructured='true';if(hidden)hidden.value=model.rawText||model.watch.metadata?.rawQuery||model.watch.rawQuery||'';return model}
-  function render(){const model=publish();const interpretation=root.querySelector('[data-composer-interpretation]');const lines=recognizedLines(model);interpretation.innerHTML=`<b>${esc(model.interpretation.summary)}</b>${lines.length?`<div>${lines.map((x)=>`<span>${esc(x)}</span>`).join('')}</div>`:''}${model.unresolvedText?`<small>未解釈: ${esc(model.unresolvedText)}</small>`:''}`;root.querySelectorAll('[data-canonical-domain]').forEach((b)=>b.classList.toggle('active',b.dataset.canonicalDomain===uiDomain(model.watch.domain)));root.querySelector('[data-canonical-editor]').innerHTML=editorHtml(model.watch);root.querySelector('[data-canonical-notification-slot]').innerHTML=notificationHtml(model.watch);const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=!model.saveable;}
-  function edit(updater){controller.applyWatchEdit(updater);render()}
+  const root=form.ownerDocument.createElement('section')
+  root.className='canonical-composer'
+  root.dataset.canonicalComposerRoot=''
+  root.innerHTML=`<div class="canonical-entry"><label><b>何を探していますか？</b><textarea rows="3" data-composer-text placeholder="例：996のグレー、24.5cm、1万円以下。中古はなし"></textarea></label><div class="canonical-interpretation" data-composer-interpretation aria-live="polite"></div></div><section class="condition-workspace" data-condition-workspace></section><button type="button" class="add-condition" data-add-condition>＋ 条件から追加</button><div data-composer-sheet-host></div>`
+  form.insertBefore(root,form.firstChild)
+  form.dataset.canonicalComposer='true'
+  const input=root.querySelector('[data-composer-text]')
+  input.value=seedRaw||originalWatch.metadata?.rawQuery||originalWatch.rawQuery||''
 
-  input.addEventListener('input',()=>{controller.applyText(input.value);render()});
+  function publish(){
+    const draft=store.getDraft()
+    const watch=watchFromDraft(draft,originalWatch)
+    const raw=input.value.trim()
+    watch.rawQuery=raw||watch.rawQuery||watch.target?.title||''
+    watch.metadata={...(watch.metadata||{}),rawQuery:watch.rawQuery,inputMode:'hybrid_cards'}
+    form._mikkeDraft=watch
+    form.dataset.submitStructured='true'
+    if(hidden)hidden.value=watch.rawQuery
+    const validation=store.validate()
+    const submit=form.querySelector('button[type="submit"]')
+    if(submit)submit.disabled=!validation.saveable||(!watch.rawQuery&&!watch.target?.title)
+    return {draft,watch,validation}
+  }
+
+  function summaryText(draft){
+    const count=draft.conditions?.length||0
+    const unresolved=draft.unresolvedFragments?.length||0
+    return unresolved?`条件 ${count}件・未整理 ${unresolved}件`:`条件 ${count}件`
+  }
+
+  function render({restoreFocus=false}={}){
+    const {draft,watch}=publish()
+    const workspace=root.querySelector('[data-condition-workspace]')
+    const target=watch.target?.title||draft.target?.title||''
+    const cards=(draft.conditions||[]).map((condition)=>conditionCardHtml(draft,condition)).join('')
+    workspace.innerHTML=`${target?`<div class="target-summary"><small>${esc(uiDomainLabel(watch.domain))}</small><b>${esc(target)}</b></div>`:''}<div class="condition-list-head"><div><small>条件</small><b data-condition-summary>${esc(summaryText(draft))}</b></div>${draft.conditions?.length>8?'<small>必要な条件だけタップして編集できます</small>':''}</div>${draft.conditions?.length>8?'<label class="condition-filter"><span class="sr-only">条件を絞り込む</span><input data-condition-filter type="search" placeholder="条件を絞り込む"></label>':''}<div class="condition-list" data-condition-list>${cards}</div>${unresolvedHtml(draft.unresolvedFragments)}`
+    const interpretation=root.querySelector('[data-composer-interpretation]')
+    interpretation.textContent=input.value.trim()?`${uiDomainLabel(watch.domain)}として整理しました。条件は下で直接直せます。`:'文章で入力するか、「条件から追加」から始められます。'
+    const host=root.querySelector('[data-composer-sheet-host]')
+    if(activeSheet?.type==='condition'){
+      const condition=draft.conditions.find((item)=>item.id===activeSheet.id)
+      host.innerHTML=condition?conditionSheetHtml(draft,condition):''
+      if(!condition)activeSheet=null
+    }else if(activeSheet?.type==='add'){
+      const options=activeSheet.options||recommendedConditions({domain:draft.domain,categoryId:draft.categoryId,subcategoryId:draft.subcategoryId,targetText:target||input.value})
+      host.innerHTML=addConditionSheetHtml(options)
+    }else host.innerHTML=''
+    if(restoreFocus&&sheetOriginId){queueMicrotask(()=>root.querySelector(`[data-condition-id="${sheetOriginId.replace(/"/g,'\\"')}"]`)?.focus())}
+  }
+
+  function applyText(raw){
+    let current=cleanParserConditions(store.getDraft())
+    const parsed=safeParse(raw)
+    if(parsed){
+      const previousDomain=originalWatch?.domain||originalWatch?.type
+      const nextDomain=parsed.domain||parsed.type
+      const domainChanged=Boolean(previousDomain&&nextDomain&&previousDomain!==nextDomain)
+      originalWatch=domainChanged?structuredClone(parsed):{...originalWatch,...structuredClone(parsed),metadata:{...(originalWatch.metadata||{}),...(parsed.metadata||{})}}
+      if(domainChanged){
+        current={...current,domain:nextDomain,categoryId:parsed.target?.categoryId,subcategoryId:parsed.target?.subcategoryId,target:structuredClone(parsed.target||{}),conditions:(current.conditions||[]).filter((item)=>item.manuallyEdited),unresolvedFragments:[]}
+      }
+    }
+    const interpretation=interpretInput(raw,{domain:current.domain,categoryId:current.categoryId,subcategoryId:current.subcategoryId})
+    const merged=mergeInterpretation(current,interpretation)
+    store=createComposerDraftStore(merged)
+    activeSheet=null
+    render()
+  }
+
+  function closeSheet(){activeSheet=null;render({restoreFocus:true});sheetOriginId=null}
+
+  input.addEventListener('input',()=>applyText(input.value))
   root.addEventListener('click',(event)=>{
-    const domain=event.target.closest('[data-canonical-domain]');if(domain){controller.switchDomain(domain.dataset.canonicalDomain);input.value='';render();return}
-    const trip=event.target.closest('[data-canonical-trip]');if(trip){edit((w)=>applyFlightTravelIntentEdit(w,{type:'set_trip_pattern',value:trip.dataset.canonicalTrip}));return}
-    const filter=event.target.closest('[data-canonical-flight-filter]');if(filter){const id=filter.dataset.canonicalFlightFilter,current=(controller.getWatch().flightFilters||[]).some((f)=>f.fieldId===id);edit((w)=>applyFlightFilterEdit(w,current?{fieldId:id,remove:true}:id==='nonstopOnly'?{fieldId:id,operator:'is_true',value:true,role:'required'}:{fieldId:id,operator:'in',value:['ANA','JAL'],role:'preferred'}));return}
-    const hotelToggle=event.target.closest('[data-canonical-hotel-toggle]');if(hotelToggle){const id=hotelToggle.dataset.canonicalHotelToggle;edit((w)=>fieldCondition(w,id)?removeDomainCondition(w,id):setDomainCondition(w,id,true));return}
-    const bool=event.target.closest('[data-canonical-boolean]');if(bool){const id=bool.dataset.canonicalField;edit((w)=>fieldCondition(w,id)?removeDomainCondition(w,id):setDomainCondition(w,id,id==='repairHistory'?false:true,undefined,'required'));return}
-    const notify=event.target.closest('[data-canonical-notify]');if(notify){const kind=notify.dataset.canonicalNotify;if(kind==='award')edit((w)=>hasTrigger(w,'availability','award')?removeTrigger(w,'availability','award'):replaceTrigger(w,{id:'canonical-award',metric:'availability',scope:'award',operator:'eq',value:true,role:'notification'}));else edit((w)=>hasTrigger(w,'availability')?removeTrigger(w,'availability'):replaceTrigger(w,{id:'canonical-availability',metric:'availability',operator:'eq',value:true,role:'notification'}));return}
-  });
+    const card=event.target.closest('[data-condition-card]')
+    if(card){sheetOriginId=card.dataset.conditionId;activeSheet={type:'condition',id:card.dataset.conditionId};render();return}
+    if(event.target.closest('[data-add-condition]')){
+      const draft=store.getDraft();activeSheet={type:'add',options:recommendedConditions({domain:draft.domain,categoryId:draft.categoryId,subcategoryId:draft.subcategoryId,targetText:draft.target?.title||input.value})};render();return
+    }
+    if(event.target.closest('[data-close-sheet]')||event.target.matches('[data-sheet-backdrop]')){closeSheet();return}
+    const remove=event.target.closest('[data-remove-unresolved]')
+    if(remove){store.removeUnresolved(remove.dataset.removeUnresolved);render();return}
+    if(event.target.closest('[data-remove-condition]')&&activeSheet?.type==='condition'){
+      store.removeCondition(activeSheet.id);closeSheet();return
+    }
+    const option=event.target.closest('[data-condition-option]')
+    if(option){
+      const draft=store.getDraft();const definition=getConditionDefinition(draft.domain,option.dataset.attributeId,draft.subcategoryId)
+      if(definition){const condition=defaultCondition(definition);store.upsertCondition(condition);const saved=store.getDraft().conditions.find((item)=>item.attributeId===condition.attributeId&&semanticLane(item)===semanticLane(condition));activeSheet={type:'condition',id:saved?.id||condition.id};render()}
+    }
+  })
+
+  root.addEventListener('input',(event)=>{
+    if(event.target.matches('[data-condition-search]')&&activeSheet?.type==='add'){
+      const draft=store.getDraft();const options=searchConditionDefinitions(draft.domain,event.target.value,draft.subcategoryId);activeSheet={type:'add',options};root.querySelector('[data-condition-options]').innerHTML=conditionOptionsHtml(options);return
+    }
+    if(event.target.matches('[data-condition-filter]')){
+      const needle=event.target.value.trim().toLocaleLowerCase('ja-JP');root.querySelectorAll('[data-condition-card]').forEach((card)=>{card.hidden=Boolean(needle&&!card.textContent.toLocaleLowerCase('ja-JP').includes(needle))})
+    }
+  })
+
   root.addEventListener('change',(event)=>{
-    const target=event.target;
-    if(target.matches('[data-canonical-field]')&&!target.dataset.canonicalBoolean){const id=target.dataset.canonicalField,watch=controller.getWatch(),field=getDomainField(watch.domain,id);edit((w)=>target.value===''?removeDomainCondition(w,id):setDomainCondition(w,id,parseFieldValue(field,id,target.value),shoppingOperators[id]));return}
-    if(target.matches('[data-canonical-place]')){const set=target.dataset.canonicalPlace,label=target.value.trim();edit((w)=>{const next=structuredClone(w);next.travelIntent={...next.travelIntent,[`${set}Set`]:{mode:'include',places:label?[{kind:'city',id:label,label}]:[]}};return next});return}
-    if(target.matches('[data-canonical-notify-price]')){const value=Number(target.value);edit((w)=>!target.value?removeTrigger(w,'price'):replaceTrigger(w,{id:'canonical-price',metric:'price',operator:'lte',value,unit:'JPY',role:'notification'}));return}
-  });
-  form.addEventListener('submit',()=>{publish();if(hidden&&!hidden.value){hidden.value=controller.getRawText()||controller.getWatch().target?.title||labels[uiDomain(controller.getWatch().domain)]}} ,true);
-  render();
-  return controller;
+    if(activeSheet?.type!=='condition')return
+    const draft=store.getDraft();const condition=draft.conditions.find((item)=>item.id===activeSheet.id);if(!condition)return
+    if(event.target.matches('[data-condition-role]')){store.setConditionRole(condition.id,event.target.value);render();return}
+    if(event.target.matches('[data-condition-operator]')){store.upsertCondition({...condition,operator:event.target.value,manuallyEdited:true});render();return}
+    if(event.target.matches('[data-condition-value]')){
+      const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
+      store.upsertCondition({...condition,value:parseEditedValue(event.target.value,condition,definition),manuallyEdited:true});render();return
+    }
+  })
+
+  root.addEventListener('keydown',(event)=>{if(event.key==='Escape'&&activeSheet){event.preventDefault();closeSheet()}})
+  form.addEventListener('submit',()=>publish(),true)
+
+  const controller={
+    getWatch:()=>publish().watch,
+    getRawText:()=>input.value,
+    getDraft:()=>store.getDraft(),
+    getRenderModel:()=>{const {watch,validation}=publish();return{watch,rawText:input.value,interpretation:{summary:root.querySelector('[data-composer-interpretation]')?.textContent||''},saveable:validation.saveable}},
+    applyText:(raw)=>{input.value=raw;applyText(raw);return publish().watch},
+  }
+  form._canonicalController=controller
+  render()
+  return controller
 }
 
 function scan(){const form=document.querySelector?.('#watch-form');if(form)mountCanonicalComposer(form)}
 if(typeof document!=='undefined'){
-  const app=document.querySelector('#app');if(app&&typeof MutationObserver!=='undefined')new MutationObserver(scan).observe(app,{childList:true,subtree:true});scan();
+  const app=document.querySelector('#app');if(app&&typeof MutationObserver!=='undefined')new MutationObserver(scan).observe(app,{childList:true,subtree:true});scan()
 }
