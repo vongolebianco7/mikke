@@ -31,6 +31,7 @@ function compatibilityToCard(item, index) {
     source:'legacy_compatibility',
     manuallyEdited:false,
     legacySubjectType:item.subjectType,
+    compatibilityRelation:item.relation,
   };
 }
 
@@ -78,8 +79,23 @@ function cardToDomainCondition(card) {
   return { id:card.id, fieldId:card.attributeId, operator:card.operator, value:clone(card.value), ...(card.unit !== undefined ? { unit:card.unit } : {}), role:card.role === 'change' ? 'notification' : card.role };
 }
 
+function compatibilityId(card) {
+  if (card.attributeId?.startsWith('compatibility:')) return card.attributeId.slice('compatibility:'.length) || card.id;
+  return card.id;
+}
+
+function isCompatibilityCard(card) {
+  return card.attributeId === 'compatibility' || card.attributeId?.startsWith('compatibility:');
+}
+
 function cardToCompatibility(card) {
-  return { id:card.id, relation:card.operator === 'compatible_with' ? 'compatible_with' : card.operator, target:clone(card.value), subjectType:card.legacySubjectType || 'product', role:card.role === 'change' ? 'notification' : card.role };
+  return {
+    id:compatibilityId(card),
+    relation:card.compatibilityRelation || (card.operator === 'compatible_with' ? 'compatible_with' : card.operator),
+    target:clone(card.value),
+    subjectType:card.subjectType || card.legacySubjectType || 'product',
+    role:card.role === 'change' ? 'notification' : card.role,
+  };
 }
 
 function cardToTrigger(card) {
@@ -96,8 +112,8 @@ export function watchFromDraft(draft = {}, originalWatch = {}) {
   if (draft.subcategoryId !== undefined) next.target.subcategoryId = draft.subcategoryId;
 
   const cards = draft.conditions || [];
-  next.domainConditions = cards.filter((card) => card.role !== 'change' && card.attributeId !== 'compatibility' && card.source !== 'legacy_conditions').map(cardToDomainCondition);
-  next.compatibilityConditions = cards.filter((card) => card.attributeId === 'compatibility').map(cardToCompatibility);
+  next.domainConditions = cards.filter((card) => card.role !== 'change' && !isCompatibilityCard(card) && card.source !== 'legacy_conditions').map(cardToDomainCondition);
+  next.compatibilityConditions = cards.filter(isCompatibilityCard).map(cardToCompatibility);
   next.triggers = cards.filter((card) => card.role === 'change').map(cardToTrigger);
   next.metadata = { ...(next.metadata || {}), ...(draft.metadata || {}), unresolvedFragments:clone(draft.unresolvedFragments || []) };
   return next;
