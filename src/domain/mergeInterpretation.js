@@ -14,15 +14,18 @@ function mergeFragments(current = [], incoming = []) {
   return result;
 }
 
+function semanticLane(condition = {}) {
+  return condition.role === 'change' ? 'change' : 'eligibility';
+}
+
 export function mergeInterpretation(draft = {}, interpretation = {}) {
   const currentConditions = Array.isArray(draft.conditions) ? draft.conditions.map(clone) : [];
   const proposals = Array.isArray(interpretation.conditionProposals) ? interpretation.conditionProposals : [];
   const conditions = [...currentConditions];
 
   for (const proposal of proposals) {
-    const index = conditions.findIndex((item) => item.attributeId === proposal.attributeId && item.role === proposal.role);
-    const sameAttributeIndex = conditions.findIndex((item) => item.attributeId === proposal.attributeId);
-    const resolvedIndex = index >= 0 ? index : sameAttributeIndex;
+    const lane = semanticLane(proposal);
+    const resolvedIndex = conditions.findIndex((item) => item.attributeId === proposal.attributeId && semanticLane(item) === lane);
     if (resolvedIndex < 0) {
       conditions.push(clone(proposal));
       continue;
