@@ -19,6 +19,10 @@ function normalizeCondition(input = {}) {
   };
 }
 
+function semanticLane(condition) {
+  return condition.role === 'change' ? 'change' : 'eligibility';
+}
+
 function contradictionConflicts(conditions) {
   const conflicts = [];
   const grouped = new Map();
@@ -57,7 +61,8 @@ export function createComposerDraftStore(initialDraft = {}) {
     },
     upsertCondition(conditionInput) {
       const incoming = normalizeCondition({ ...conditionInput, manuallyEdited: true });
-      const existingIndex = draft.conditions.findIndex((item) => item.id === incoming.id || item.attributeId === incoming.attributeId);
+      const incomingLane = semanticLane(incoming);
+      const existingIndex = draft.conditions.findIndex((item) => item.id === incoming.id || (item.attributeId === incoming.attributeId && semanticLane(item) === incomingLane));
       if (existingIndex >= 0) {
         const existing = draft.conditions[existingIndex];
         const next = [...draft.conditions];
