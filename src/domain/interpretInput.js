@@ -93,6 +93,20 @@ function conservativeUnresolved(text) {
   return fragments;
 }
 
+function openBoxException(text) {
+  if (!/(?:中古は?(?:不可|除外|嫌)|中古不可).*(?:未使用開封品|開封未使用|未使用品).*(?:OK|可)/.test(text)) return null;
+  return {
+    id: 'text-condition-exception',
+    attributeId: 'condition',
+    operator: 'one_of',
+    value: ['new', 'open_box'],
+    role: 'required',
+    supportState: 'needs_review',
+    source: 'text',
+    manuallyEdited: false,
+  };
+}
+
 function dedupeByAttribute(proposals) {
   const result = [];
   const indexByKey = new Map();
@@ -129,6 +143,12 @@ export function interpretInput(raw, context = {}) {
         id: 'text-approx-price', attributeId: 'price', operator: 'eq', value: approximatePrice,
         unit: 'JPY', role: 'preferred', supportState: 'needs_review', source: 'text', manuallyEdited: false,
       });
+    }
+
+    const exception = openBoxException(text);
+    if (exception) {
+      conditionProposals = conditionProposals.filter((item) => item.attributeId !== 'condition');
+      conditionProposals.push(exception);
     }
 
     const unresolvedFragments = conservativeUnresolved(text);
