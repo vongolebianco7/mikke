@@ -6,7 +6,7 @@ import { draftFromWatch, watchFromDraft } from './domain/composerLegacyAdapter.j
 import { getConditionDefinition, recommendedConditions, searchConditionDefinitions } from './domain/conditionCatalog.js';
 import { ROLE_LABELS, OPERATOR_LABELS, conditionLabel, conditionValueLabel, editableValue } from './composer/conditionPresentation.js';
 
-function esc(value){return String(value??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function esc(value){return String(value??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]))}
 function defaultWatch(){return{type:'shopping',domain:'fashion',target:{title:''},rawQuery:'',domainConditions:[],compatibilityConditions:[],triggers:[],metadata:{}}}
 function uiDomainLabel(domain){return domain==='flight'?'航空券':domain==='hotel'?'ホテル':domain==='used_car'?'中古車':'商品'}
 function semanticLane(condition){return condition?.role==='change'?'change':'eligibility'}
@@ -134,9 +134,17 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
   }
 
   function applyText(raw){
-    const current=cleanParserConditions(store.getDraft())
+    let current=cleanParserConditions(store.getDraft())
     const parsed=safeParse(raw)
-    if(parsed)originalWatch={...originalWatch,...structuredClone(parsed),metadata:{...(originalWatch.metadata||{}),...(parsed.metadata||{})}}
+    if(parsed){
+      const previousDomain=originalWatch?.domain||originalWatch?.type
+      const nextDomain=parsed.domain||parsed.type
+      const domainChanged=Boolean(previousDomain&&nextDomain&&previousDomain!==nextDomain)
+      originalWatch=domainChanged?structuredClone(parsed):{...originalWatch,...structuredClone(parsed),metadata:{...(originalWatch.metadata||{}),...(parsed.metadata||{})}}
+      if(domainChanged){
+        current={...current,domain:nextDomain,categoryId:parsed.target?.categoryId,subcategoryId:parsed.target?.subcategoryId,target:structuredClone(parsed.target||{}),conditions:(current.conditions||[]).filter((item)=>item.manuallyEdited),unresolvedFragments:[]}
+      }
+    }
     const interpretation=interpretInput(raw,{domain:current.domain,categoryId:current.categoryId,subcategoryId:current.subcategoryId})
     const merged=mergeInterpretation(current,interpretation)
     store=createComposerDraftStore(merged)
