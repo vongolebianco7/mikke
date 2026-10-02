@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { interpretInput } from '../src/domain/interpretInput.js';
-
-const corpus = JSON.parse(readFileSync(new URL('./fixtures/input-composer-corpus.json', import.meta.url), 'utf8'));
+import { inputComposerCorpus as corpus } from './fixtures/inputComposerCorpus.js';
 
 test('input composer corpus contains at least 800 diverse scenarios', () => {
   assert.ok(corpus.length >= 800, `expected >=800 scenarios, got ${corpus.length}`);
