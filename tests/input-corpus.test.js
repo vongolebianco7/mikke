@@ -16,6 +16,20 @@ test('input composer corpus contains at least 800 diverse scenarios', () => {
   assert.ok(counts.adversarial >= 40);
 });
 
+test('corpus diversity is not produced by cloning the same templates across families', () => {
+  const templateKeys = new Set(corpus.map((item) => item.templateKey).filter(Boolean));
+  assert.ok(templateKeys.size >= 100, `expected >=100 distinct template shapes, got ${templateKeys.size}`);
+
+  const families = [...new Set(corpus.map((item) => item.family))];
+  for (const family of families) {
+    const familySpecific = corpus.filter((item) => item.family === family && item.familySpecific === true);
+    assert.ok(familySpecific.length >= 4, `${family}: expected at least 4 family-specific scenarios, got ${familySpecific.length}`);
+  }
+
+  const specificInputs = corpus.filter((item) => item.familySpecific).map((item) => item.input);
+  assert.equal(new Set(specificInputs).size, specificInputs.length, 'family-specific inputs must be unique');
+});
+
 test('every scenario preserves declared semantic intent or explicitly unresolved text', () => {
   for (const scenario of corpus) {
     const result = interpretInput(scenario.input);
