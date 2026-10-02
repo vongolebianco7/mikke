@@ -31,14 +31,45 @@ function operatorOptions(draft,condition){
   return unique.map((value)=>`<option value="${esc(value)}" ${value===condition.operator?'selected':''}>${esc(OPERATOR_LABELS[value]||value)}</option>`).join('')
 }
 
+const CHOICE_LABELS={
+  one_way:'片道',round_trip:'往復',multi_city:'複数都市',
+  economy:'エコノミー',premium_economy:'プレミアムエコノミー',business:'ビジネス',first:'ファースト',
+  cash:'現金・カード',miles:'マイル',either:'どちらでも',
+  white:'白',black:'黒',gray:'グレー',grey:'グレー',navy:'ネイビー',blue:'青',red:'赤',beige:'ベージュ',
+  new:'新品',open_box:'未使用開封品',used:'中古',in_stock:'在庫あり',
+}
+function choiceLabel(value){return CHOICE_LABELS[value]||String(value)}
+
 function parseEditedValue(raw,condition,definition){
   const text=String(raw??'').trim()
+  if(text==='')return''
   if(condition.operator==='one_of')return text.split(/[、,]/).map((item)=>item.trim()).filter(Boolean)
-  if(definition?.valueType==='boolean'||condition.operator==='boolean')return ['true','1','はい','yes'].includes(text.toLowerCase())
+  if(definition?.valueType==='boolean'||condition.operator==='boolean'){
+    if(['true','1','はい','yes'].includes(text.toLowerCase()))return true
+    if(['false','0','いいえ','no'].includes(text.toLowerCase()))return false
+    return''
+  }
   if(['integer','number','duration','money','measurement'].includes(definition?.valueType)||typeof condition.value==='number'){
     const value=Number(text.replace(/,/g,''));return Number.isFinite(value)?value:text
   }
   return text
+}
+
+function valueEditorHtml(condition,definition){
+  const inputMode=['integer','number','duration','money','measurement'].includes(definition?.valueType)||typeof condition.value==='number'?'decimal':'text'
+  if(condition.operator==='range'){
+    const range=Array.isArray(condition.value)?condition.value:['','']
+    return `<div class="range-value-grid"><label><span>下限</span><input data-condition-range-min inputmode="${inputMode}" value="${esc(range[0]??'')}"></label><label><span>上限</span><input data-condition-range-max inputmode="${inputMode}" value="${esc(range[1]??'')}"></label></div>`
+  }
+  if(definition?.valueType==='boolean'){
+    const selected=condition.value===true?'true':condition.value===false?'false':''
+    return `<label><span>値</span><select data-condition-value><option value="" ${selected===''?'selected':''}>選択してください</option><option value="true" ${selected==='true'?'selected':''}>はい</option><option value="false" ${selected==='false'?'selected':''}>いいえ</option></select></label>`
+  }
+  if(definition?.allowedValues?.length){
+    const current=condition.value==null?'':String(condition.value)
+    return `<label><span>値</span><select data-condition-value><option value="" ${current===''?'selected':''}>選択してください</option>${definition.allowedValues.map((value)=>`<option value="${esc(value)}" ${String(value)===current?'selected':''}>${esc(choiceLabel(value))}</option>`).join('')}</select></label>`
+  }
+  return `<label><span>値</span><input data-condition-value inputmode="${inputMode}" value="${esc(editableValue(condition))}"></label>`
 }
 
 function conditionCardHtml(draft,condition){
@@ -53,9 +84,7 @@ function unresolvedHtml(fragments){
 
 function conditionSheetHtml(draft,condition){
   const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
-  const value=editableValue(condition)
-  const inputMode=['integer','number','duration','money','measurement'].includes(definition?.valueType)||typeof condition.value==='number'?'decimal':'text'
-  return `<div class="composer-sheet-backdrop" data-sheet-backdrop><section class="composer-sheet" data-condition-sheet role="dialog" aria-modal="true" aria-label="条件を編集"><div class="sheet-handle" aria-hidden="true"></div><header><div><small>${esc(ROLE_LABELS[condition.role]||'条件')}</small><h3>${esc(conditionLabel(draft,condition))}</h3></div><button type="button" class="sheet-close" data-close-sheet aria-label="閉じる">×</button></header><div class="sheet-fields"><label><span>扱い</span><select data-condition-role>${normalizedRoleOptions(condition.role)}</select></label><label><span>条件</span><select data-condition-operator>${operatorOptions(draft,condition)}</select></label><label><span>値</span><input data-condition-value inputmode="${inputMode}" value="${esc(value)}"></label>${condition.unit?`<div class="condition-unit">単位: ${esc(condition.unit==='JPY'?'円':condition.unit)}</div>`:''}</div><button type="button" class="danger-quiet" data-remove-condition>この条件を削除</button></section></div>`
+  return `<div class="composer-sheet-backdrop" data-sheet-backdrop><section class="composer-sheet" data-condition-sheet role="dialog" aria-modal="true" aria-label="条件を編集"><div class="sheet-handle" aria-hidden="true"></div><header><div><small>${esc(ROLE_LABELS[condition.role]||'条件')}</small><h3>${esc(conditionLabel(draft,condition))}</h3></div><button type="button" class="sheet-close" data-close-sheet aria-label="閉じる">×</button></header><div class="sheet-fields"><label><span>扱い</span><select data-condition-role>${normalizedRoleOptions(condition.role)}</select></label><label><span>条件</span><select data-condition-operator>${operatorOptions(draft,condition)}</select></label>${valueEditorHtml(condition,definition)}${condition.unit?`<div class="condition-unit">単位: ${esc(condition.unit==='JPY'?'円':condition.unit)}</div>`:''}</div><button type="button" class="danger-quiet" data-remove-condition>この条件を削除</button></section></div>`
 }
 
 function conditionOptionsHtml(options){
@@ -68,10 +97,7 @@ function addConditionSheetHtml(options){
 
 function defaultCondition(definition){
   const operator=definition.operators?.[0]||'eq'
-  let value=''
-  if(definition.valueType==='boolean')value=true
-  else if(definition.allowedValues?.length)value=definition.allowedValues[0]
-  return {id:`manual-${definition.attributeId}-${Date.now()}`,attributeId:definition.attributeId,operator,value,unit:definition.unit,role:'required',supportState:'confirmed',source:'manual',manuallyEdited:true}
+  return {id:`manual-${definition.attributeId}-${Date.now()}`,attributeId:definition.attributeId,operator,value:'',unit:definition.unit,role:'required',supportState:'confirmed',source:'manual',manuallyEdited:true}
 }
 
 export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={}){
@@ -187,10 +213,23 @@ export function mountCanonicalComposer(form,{Event:EventCtor=globalThis.Event}={
     if(activeSheet?.type!=='condition')return
     const draft=store.getDraft();const condition=draft.conditions.find((item)=>item.id===activeSheet.id);if(!condition)return
     if(event.target.matches('[data-condition-role]')){store.setConditionRole(condition.id,event.target.value);render();return}
-    if(event.target.matches('[data-condition-operator]')){store.upsertCondition({...condition,operator:event.target.value,manuallyEdited:true});render();return}
+    if(event.target.matches('[data-condition-operator]')){
+      const operator=event.target.value
+      let value=condition.value
+      if(operator==='range'&&!Array.isArray(value))value=[value??'','']
+      if(operator!=='range'&&Array.isArray(value))value=value[0]??''
+      store.upsertCondition({...condition,operator,value,manuallyEdited:true});render();return
+    }
+    if(event.target.matches('[data-condition-range-min],[data-condition-range-max]')){
+      const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
+      const current=Array.isArray(condition.value)?[...condition.value]:['','']
+      const index=event.target.matches('[data-condition-range-min]')?0:1
+      current[index]=parseEditedValue(event.target.value,{...condition,operator:'eq'},definition)
+      store.upsertCondition({...condition,value:current,manuallyEdited:true});publish();return
+    }
     if(event.target.matches('[data-condition-value]')){
       const definition=getConditionDefinition(draft.domain,condition.attributeId,draft.subcategoryId)
-      store.upsertCondition({...condition,value:parseEditedValue(event.target.value,condition,definition),manuallyEdited:true});render();return
+      store.upsertCondition({...condition,value:parseEditedValue(event.target.value,condition,definition),manuallyEdited:true});publish();return
     }
   })
 
