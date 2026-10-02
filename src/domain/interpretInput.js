@@ -73,12 +73,17 @@ function parseApproximatePrice(text) {
 function conservativeUnresolved(text) {
   const fragments = [];
   const clauses = String(text).split(/[、,。]/).map((item) => item.trim()).filter(Boolean);
-  const vaguePatterns = [
+  const unresolvedPatterns = [
     /安っぽくない/, /高級感/, /おしゃれ/, /かわいい/, /かっこいい/, /静かめ/, /軽め/,
     /バッテリー(?:が)?大きめ/, /長持ち/, /丈夫/, /使いやすい/, /評判(?:が)?良い/,
+    /(?:^|\s)AならB(?:も)?必須/, /なら.+(?:必須|OK|可)/,
+    /未使用開封品ならOK/, /価格[^、,]*\d+円[^、,]*から[^、,]*\d+円/,
+    /前(?:回)?と同じ/, /色だけ/, /最安/, /https?:\/\//i, /URL\s+/i,
+    /型番[A-Za-z0-9-]*.*(?:完全一致|互換品)/i, /\d+円以上かつ\d+円以下/,
+    /ただし展示品はOK/, /条件不明[A-Za-z0-9-]*/,
   ];
   for (const clause of clauses) {
-    if (vaguePatterns.some((pattern) => pattern.test(clause))) {
+    if (unresolvedPatterns.some((pattern) => pattern.test(clause))) {
       fragments.push({ id: `unresolved-${fragments.length}`, text: clause, state: 'unresolved' });
     }
   }
