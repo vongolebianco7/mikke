@@ -3,7 +3,41 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { interpretInput } from '../src/domain/interpretInput.js';
 
-const corpus = JSON.parse(readFileSync(new URL('./fixtures/input-composer-corpus.json', import.meta.url), 'utf8'));
+const config = JSON.parse(readFileSync(new URL('./fixtures/input-composer-corpus.json', import.meta.url), 'utf8'));
+
+function expandCorpus({ domains, perDomain, colors, qualities }) {
+  const rows = [];
+  for (let domainIndex = 0; domainIndex < domains.length; domainIndex += 1) {
+    const [domainFamily, products] = domains[domainIndex];
+    const difficultyOrder = Object.entries(perDomain).flatMap(([difficulty, count]) => Array(count).fill(difficulty));
+    difficultyOrder.forEach((difficulty, index) => {
+      const product = products[index % products.length];
+      const price = (5 + ((domainIndex * 11 + index * 3) % 96)) * 1000;
+      const width = 40 + ((domainIndex * 7 + index * 5) % 81);
+      const year = 2021 + ((domainIndex + index) % 6);
+      const color1 = colors[(domainIndex + index) % colors.length];
+      const color2 = colors[(domainIndex + index + 3) % colors.length];
+      const quality = qualities[(domainIndex * 2 + index) % qualities.length];
+      let input;
+      if (difficulty === 'simple') input = `${product}、${color1}、${price.toLocaleString('ja-JP')}円以下`;
+      if (difficulty === 'normal') input = `${product}、${color1}か${color2}、${price.toLocaleString('ja-JP')}円以下、できれば${quality}、${year}年以降`;
+      if (difficulty === 'advanced') input = `${product}、必須で新品、${color1}か${color2}、${price.toLocaleString('ja-JP')}円以下、幅${width}cm以下、できれば${quality}、在庫復活も確認したい、${year}年以降`;
+      if (difficulty === 'complex') {
+        const percent = 5 + ((domainIndex + index) % 30);
+        input = `${product}、必須で新品、${color1}か${color2}、${price.toLocaleString('ja-JP')}円以下、幅${width}cm以下、できれば${quality}、在庫復活も確認したい、中古は除外、レビュー評価高め、送料込み、${year}年以降、保証あり、近くで買える、今より${percent}%安くなったら確認したい`;
+      }
+      if (difficulty === 'adversarial') {
+        input = index % 2 === 0
+          ? `${product}、中古不可だが未使用開封品ならOK、${Math.max(1, Math.round(price / 10000))}万円くらい、${color1}`
+          : `${product}、同じ条件で色だけ${color1}、前の条件は残して、${year}年モデル、型番WH-${1000 + domainIndex * 40 + index}XM相当`;
+      }
+      rows.push({ id:`${domainFamily}-${String(index + 1).padStart(2,'0')}`, domainFamily, difficulty, input, mustPreserve:[product] });
+    });
+  }
+  return rows;
+}
+
+const corpus = expandCorpus(config);
 
 test('corpus contains at least 800 unique scenarios with required difficulty distribution', () => {
   assert.ok(corpus.length >= 800, `expected >=800, got ${corpus.length}`);
