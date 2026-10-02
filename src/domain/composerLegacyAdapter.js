@@ -103,10 +103,20 @@ function cardToTrigger(card) {
   return { id:card.id, metric:card.attributeId, operator:legacy.operator || (card.operator === 'relative_change' ? 'lt' : card.operator), value:clone(card.value), ...(card.unit !== undefined ? { unit:card.unit } : {}), reference:legacy.reference || (card.operator === 'relative_change' ? 'previous_observation' : 'current'), scope:legacy.scope || 'candidate', role:'notification' };
 }
 
+function watchTypeForDomain(domain) {
+  if (domain === 'flight') return 'flight';
+  if (domain === 'hotel') return 'hotel';
+  return 'shopping';
+}
+
 export function watchFromDraft(draft = {}, originalWatch = {}) {
   const next = clone(originalWatch || {});
   next.domain = draft.domain || next.domain || next.type || 'shopping';
-  if (!next.type) next.type = next.domain === 'flight' ? 'flight' : next.domain === 'hotel' ? 'hotel' : 'shopping';
+  next.type = watchTypeForDomain(next.domain);
+  if (next.domain !== 'flight') {
+    delete next.travelIntent;
+    delete next.flightFilters;
+  }
   next.target = { ...(next.target || {}), ...clone(draft.target || {}) };
   if (draft.categoryId !== undefined) next.target.categoryId = draft.categoryId;
   if (draft.subcategoryId !== undefined) next.target.subcategoryId = draft.subcategoryId;
