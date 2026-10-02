@@ -26,6 +26,9 @@ const FALLBACK_LABELS = Object.freeze({
 const VALUE_LABELS = Object.freeze({
   white: '白', black: '黒', gray: 'グレー', grey: 'グレー', navy: 'ネイビー', blue: '青', red: '赤', beige: 'ベージュ',
   new: '新品', open_box: '未使用開封品', used: '中古', in_stock: '在庫あり',
+  one_way: '片道', round_trip: '往復', multi_city: '複数都市',
+  economy: 'エコノミー', premium_economy: 'プレミアムエコノミー', business: 'ビジネス', first: 'ファースト',
+  cash: '現金・カード', miles: 'マイル', either: 'どちらでも',
 });
 
 export function conditionLabel(draft, condition) {
@@ -49,8 +52,11 @@ function formatOne(value) {
 }
 
 export function conditionValueLabel(condition) {
-  const values = Array.isArray(condition.value) ? condition.value.map(formatOne).join('・') : formatOne(condition.value);
   const unit = condition.unit === 'JPY' ? '円' : (condition.unit || '');
+  if (condition.operator === 'range' && Array.isArray(condition.value)) {
+    return condition.value.map((value) => `${formatOne(value)}${value == null || value === '' ? '' : unit}`).join('〜');
+  }
+  const values = Array.isArray(condition.value) ? condition.value.map(formatOne).join('・') : formatOne(condition.value);
   const suffix = {
     gte: '以上', lte: '以下', range: '', one_of: '', eq: '', neq: '以外', not_contains: 'を含まない',
     compatible_with: 'に対応', changed_to: 'になったら', relative_change: '（前回から変化）', rank: 'を優先',
