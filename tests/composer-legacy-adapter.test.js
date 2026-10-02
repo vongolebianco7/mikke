@@ -24,6 +24,33 @@ test('compatibility and change conditions round trip', () => {
   assert.equal(watch.triggers[0].metric, 'price');
 });
 
+test('new compatibility card ids save back as compatibility conditions instead of domain fields', () => {
+  const draft = {
+    domain:'fashion',
+    target:{title:'ヴェゼル対応フロアマット'},
+    conditions:[{
+      id:'compat-vehicle',
+      attributeId:'compatibility:compat-vehicle',
+      operator:'compatible_with',
+      value:{type:'vehicle',model:'ヴェゼル'},
+      role:'required',
+      supportState:'confirmed',
+      source:'text',
+      manuallyEdited:false,
+      subjectType:'accessory',
+      compatibilityRelation:'compatible_with',
+    }],
+    unresolvedFragments:[],
+    metadata:{rawQuery:'ヴェゼル対応フロアマット'},
+  };
+  const watch = watchFromDraft(draft, { type:'shopping', domain:'fashion' });
+  assert.equal(watch.domainConditions.length, 0);
+  assert.equal(watch.compatibilityConditions.length, 1);
+  assert.equal(watch.compatibilityConditions[0].id, 'compat-vehicle');
+  assert.equal(watch.compatibilityConditions[0].subjectType, 'accessory');
+  assert.deepEqual(watch.compatibilityConditions[0].target, {type:'vehicle',model:'ヴェゼル'});
+});
+
 test('legacy conditions map without deleting raw legacy data', () => {
   const original = { id:'w4', type:'shopping', conditions:{maxPrice:10000,size:'26cm',attributes:{size:'26cm'}} };
   const { draft, watch } = roundTrip(original);
