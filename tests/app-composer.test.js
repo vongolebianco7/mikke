@@ -68,14 +68,18 @@ test('result cards distinguish unsupported evidence from temporarily unknown evi
   assert.match(evidenceCss, /evidence-state/);
 });
 
-test('Watch composer is one domain-aware flow instead of three input modes', () => {
+test('Watch composer is one inferred domain-aware card flow instead of three input modes', () => {
   assert.doesNotMatch(modes, /かんたん/);
   assert.doesNotMatch(modes, /data-composer-mode/);
   assert.doesNotMatch(modes, /\bcomposerMode\b/);
   assert.doesNotMatch(modeCss, /mode-cards/);
   assert.match(canonical, /何を探していますか？/);
-  assert.match(canonical, /data-canonical-domain/);
-  assert.match(modeCss, /unified-composer/);
+  assert.match(canonical, /data-composer-text/);
+  assert.match(canonical, /data-condition-workspace/);
+  assert.match(canonical, /data-add-condition/);
+  assert.match(canonical, /nextDomain=parsed\.domain\|\|parsed\.type/);
+  assert.match(canonical, /domainChanged/);
+  assert.match(canonical, /conditions:\(current\.conditions\|\|\[\]\)\.filter\(\(item\)=>item\.manuallyEdited\)/);
 });
 
 test('unified composer is backed by one structured draft controller', () => {
@@ -156,5 +160,7 @@ test('primary text entry is canonical and no legacy composer runtime is loaded b
   assert.doesNotMatch(index, /textEntryUi\.js/);
   assert.doesNotMatch(index, /src\/composerModes\.js/);
   assert.match(canonical, /data-composer-text/);
-  assert.match(canonical, /controller\.applyText/);
+  assert.match(canonical, /input\.addEventListener\('input',\(\)=>applyText\(input\.value\)\)/);
+  assert.match(canonical, /form\._mikkeDraft=watch/);
+  assert.match(canonical, /applyText:\(raw\)=>\{input\.value=raw;applyText\(raw\);return publish\(\)\.watch\}/);
 });
