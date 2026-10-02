@@ -14,6 +14,15 @@ test('upsert preserves stable id for the same attribute', () => {
   assert.deepEqual(saved.value, ['black']);
 });
 
+test('search condition and change condition can coexist for the same attribute', () => {
+  const store = createComposerDraftStore({ conditions: [condition('hard-price', 'price', 'lte', 10000, 'required')] });
+  store.upsertCondition(condition('change-price', 'price', 'relative_change', undefined, 'change'));
+  const prices = store.getDraft().conditions.filter((item) => item.attributeId === 'price');
+  assert.equal(prices.length, 2);
+  assert.ok(prices.some((item) => item.role === 'required'));
+  assert.ok(prices.some((item) => item.role === 'change'));
+});
+
 test('role change does not recreate the condition', () => {
   const store = createComposerDraftStore({ conditions: [condition('c1', 'color', 'eq', 'white')] });
   store.setConditionRole('c1', 'preferred');
