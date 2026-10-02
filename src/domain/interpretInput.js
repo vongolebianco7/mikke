@@ -123,22 +123,29 @@ function dedupeByAttribute(proposals) {
   return result;
 }
 
+function normalizeDomainPriceAttributes(proposals, domain) {
+  if (domain !== 'used_car') return proposals;
+  return proposals.map((proposal) => proposal.attributeId === 'price' ? { ...proposal, attributeId: 'totalPrice' } : proposal);
+}
+
 export function interpretInput(raw, context = {}) {
   const text = String(raw || '').trim();
   if (!text) return { rawText: '', targetProposal: null, conditionProposals: [], unresolvedFragments: [], confidence: 'empty' };
 
   try {
     const parsed = parseWatchQuery(text);
+    const parsedDomain = parsed?.domain || parsed?.type || context.domain;
     const domainConditions = Array.isArray(parsed?.domainConditions) ? parsed.domainConditions : [];
     const genericConditions = Array.isArray(parsed?.genericConditions) ? parsed.genericConditions : [];
     const baseConditions = domainConditions.length ? domainConditions : genericConditions;
     let conditionProposals = baseConditions.map(fromDomainCondition);
     conditionProposals.push(...(Array.isArray(parsed?.compatibilityConditions) ? parsed.compatibilityConditions.map(fromCompatibility) : []));
     conditionProposals.push(...(Array.isArray(parsed?.triggers) ? parsed.triggers.map(fromTrigger) : []));
+    conditionProposals = normalizeDomainPriceAttributes(conditionProposals, parsedDomain);
 
     const approximatePrice = parseApproximatePrice(text);
     if (approximatePrice !== undefined) {
-      const approximatePriceAttribute = (parsed?.domain === 'used_car' || parsed?.target?.domain === 'used_car') ? 'totalPrice' : 'price';
+      const approximatePriceAttribute = parsedDomain === 'used_car' ? 'totalPrice' : 'price';
       conditionProposals = conditionProposals.filter((item) => !['price', 'totalPrice', 'landed_price'].includes(item.attributeId));
       conditionProposals.push({
         id: 'text-approx-price', attributeId: approximatePriceAttribute, operator: 'eq', value: approximatePrice,
@@ -156,7 +163,7 @@ export function interpretInput(raw, context = {}) {
     return {
       rawText: text,
       targetProposal: parsed?.target ? structuredClone(parsed.target) : { title: text.split(/[、,]/)[0] },
-      domainHint: parsed?.domain || parsed?.type || context.domain,
+      domainHint: parsedDomain,
       categoryHint: parsed?.target?.categoryId || parsed?.categoryId || context.categoryId,
       subcategoryHint: parsed?.target?.subcategoryId || context.subcategoryId,
       conditionProposals: dedupeByAttribute(conditionProposals),
