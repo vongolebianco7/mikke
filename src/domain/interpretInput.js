@@ -138,9 +138,10 @@ export function interpretInput(raw, context = {}) {
 
     const approximatePrice = parseApproximatePrice(text);
     if (approximatePrice !== undefined) {
-      conditionProposals = conditionProposals.filter((item) => item.attributeId !== 'price' && item.attributeId !== 'totalPrice' && item.attributeId !== 'landed_price');
+      const approximatePriceAttribute = (parsed?.domain === 'used_car' || parsed?.target?.domain === 'used_car') ? 'totalPrice' : 'price';
+      conditionProposals = conditionProposals.filter((item) => !['price', 'totalPrice', 'landed_price'].includes(item.attributeId));
       conditionProposals.push({
-        id: 'text-approx-price', attributeId: 'price', operator: 'eq', value: approximatePrice,
+        id: 'text-approx-price', attributeId: approximatePriceAttribute, operator: 'eq', value: approximatePrice,
         unit: 'JPY', role: 'preferred', supportState: 'needs_review', source: 'text', manuallyEdited: false,
       });
     }
